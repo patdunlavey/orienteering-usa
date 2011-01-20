@@ -1,0 +1,593 @@
+<?php
+// $Id$
+/**
+* @file
+* MoneyScripts ClickBank Payment Gateway
+* Copyright 2010 Leighton Whiting
+*/  
+
+/**
+* Display help and module information
+*/
+function ms_clickbank_help($path, $arg) {
+  $output = '';
+  switch ($path) {
+    case "admin/help#ms_clickbank":
+    case 'admin/moneyscripts/gateways/ms_clickbank':
+      $output = '<p>'.  t("You must enter the following url as the Instant Notification URL in your ClickBank Settings: %url", array('%url' => url('clickbank/backend', array('absolute' => TRUE)))) .'</p>';
+      break;
+  }
+  return $output;
+}
+
+function ms_clickbank_access_test(){
+  return TRUE;
+}
+
+/**
+ * Implementation of hook_menu
+ */
+function ms_clickbank_menu() {
+  $items = array();
+  $items['clickbank/backend'] = array(
+    'title' => t('Backend'),
+    'page callback' => 'ms_clickbank_ipn',
+    'access callback' => 'ms_clickbank_access_test',
+    'type' => MENU_CALLBACK,
+  );
+  $items['admin/moneyscripts/gateways/ms_clickbank/products'] = array(
+    'title' => 'ClickBank Products',
+    'page callback' => 'ms_clickbank_list_products',
+    'access arguments' => array('access administration pages'),
+    'description' => 'Add and Edit ClickBank Products',
+    'type' => MENU_NORMAL_ITEM,
+  );
+  $items['admin/moneyscripts/gateways/ms_clickbank/products/list'] = array(
+    'title' => 'List ClickBank Product',
+    'page callback' => 'ms_clickbank_list_products',
+    'access arguments' => array('access administration pages'),
+    'type' => MENU_DEFAULT_LOCAL_TASK,
+    'weight' => '-1'
+  );
+  $items['admin/moneyscripts/gateways/ms_clickbank/products/add'] = array(
+    'title' => 'Register ClickBank Product',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('ms_clickbank_product_form', 'add'),
+    'access arguments' => array('access administration pages'),
+    'type' => MENU_LOCAL_TASK,
+  );
+  $items['admin/moneyscripts/gateways/ms_clickbank/products/edit/%'] = array(
+    'title' => 'Edit ClickBank Product',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('ms_clickbank_product_form', 'edit', 6),
+    'access arguments' => array('access administration pages'),
+    'type' => MENU_CALLBACK,
+  );
+  $items['admin/moneyscripts/gateways/ms_clickbank/products/delete/%'] = array(
+    'title' => 'Delete ClickBank Product',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('ms_clickbank_delete_clickbank_product_confirm', 6),
+    'access arguments' => array('access administration pages'),
+    'type' => MENU_CALLBACK,
+  );
+  $items['admin/moneyscripts/gateways/ms_clickbank'] = array(
+    'title' => t('ClickBank Settings'),
+    'description' => t('Set the various ClickBank Integration Settings here'),
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('ms_clickbank_admin'),
+    'access arguments' => array('access administration pages'),
+    'type' => MENU_NORMAL_ITEM,
+   );
+  $items['admin/moneyscripts/gateways/ms_clickbank/clickbank-test'] = array(
+    'title' => t('ClickBank IPN Test'),
+    'page callback' => 'clickbank_send_test',
+    'access arguments' => array('access administration pages'),
+    'type' => MENU_NORMAL_ITEM,
+   );
+
+  return $items;
+}
+
+// ======================================
+// Administration Page:
+// ======================================
+
+/**
+ * Admin Settings Form
+ */
+function ms_clickbank_admin() {
+  $form['main'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Main Settings'),
+    '#collapsible' => FALSE,
+    '#collapsed' => FALSE,
+  );
+	
+	$form['main']['ms_clickbank_secret_key'] = array(
+		'#type' => 'textfield',
+		'#title' => t('ClickBank Secret Key'),
+		'#default_value' => variable_get('ms_clickbank_secret_key', ''),
+		'#description' => t('Enter your Secret Key you set on your ClickBank Account'),
+		'#required' => FALSE,
+	);
+
+  return system_settings_form($form);
+}
+
+// ======================================
+// Pages:
+// ======================================
+
+//Send a test IPN
+function clickbank_send_test() {
+  if (isset($_POST['cproditem'])){
+    $cverify = ms_clickbank_get_verify($_POST, variable_get('ms_clickbank_secret_key', ''));
+    $formValues = "<input type='hidden' value='$cverify' name='cverify' />";
+    foreach ($_POST as $field => $value){
+      $formValues .= "<input type='hidden' value='$value' name='$field' />";
+    }
+    $formValues .= "<input type='submit' value='Test' />";
+    $contentHtml = "Ready to Submit: <form action='/clickbank/backend' method='post'>". $formValues ."</form>";
+  }
+  else {
+    $timeNow = time();
+    $contentHtml = "
+    <form action='' method='post' target='_blank'>
+    Transaction Receipt Number: <input type='text' name='ctransreceipt' value='12345678' /><br />
+    Transaction Time: <input type='text' name='purchase_time' value='$timeNow' /><br />
+    Payment Method: <input type='text' name='ctranspaymentmethod' value='VISA' /><br />
+    Product Type: <select name='cprodtype'><option value='STANDARD'>STANDARD</option><option value='RECURRING'>RECURRING</option></select><br />
+    Transaction Type: <select name='ctransaction'>
+    <option value='SALE'>SALE</option><option valuse='BILL'>BILL</option><option valuse='RFND'>RFND</option>
+    <option value='CGBK'>CGBK</option><option valuse='INSF'>INSF</option><option valuse='CANCEL-REBILL'>CANCEL-REBILL</option>
+    <option value='UNCANCEL-REBILL'>UNCANCEL-REBILL</option><option value='TEST'>TEST</option>
+    </select><br />
+    <br />
+    Full Name: <input type='text' name='ccustname' value='Test User' /><br />
+    Email: <input type='text' name='ccustemail' value='name@email.com' /><br />
+    State: <input type='text' name='ccuststate' value='' /><br />
+    Country Code: <input type='text' name='ccustcc' value='' /><br />
+    <br />
+    Product Price (in pennies): <input type='text' name='ctransamount' value='1943' /><br />
+    Product ID: <input type='text' name='cproditem' value='123' /><br />
+    Product Name: <input type='text' name='cprodtitle' value='Test Product' /><br />
+    Merchant Username: <input type='text' name='ctranspublisher' value='merchperson' /><br />
+    Affiliate Username: <input type='text' name='ctransaffiliate' value='' /><br />
+    Affiliate ID: <input type='text' name='caffitid' value='' /><br />
+    <input type='hidden' value='' name='cvendthru' />
+    <input type='submit' value='Prepare' />
+    </form>
+    ";
+  }
+  print theme('page', $contentHtml);
+}
+
+/**
+ * List the clickbank products in the admin area
+ */
+function ms_clickbank_list_products() {
+  $output = t("These are the ClickBank Products you have Registered") .":<br />";
+  
+  $headers = array(t('ClickBank Product'), t('Edit'), t('Delete'));
+  $rows = array();
+  
+  $result = db_query("SELECT * FROM {ms_clickbank_products}");
+  
+  while ($cb_product = db_fetch_object($result)) {
+    $rows[] = array(
+      $cb_product->name,
+      l(t('Edit'), 'admin/moneyscripts/gateways/ms_clickbank/products/edit/'. $cb_product->cbpid),
+      l(t('Delete'), 'admin/moneyscripts/gateways/ms_clickbank/products/delete/'. $cb_product->cbpid),
+    );
+  }
+  
+  if (is_array($rows)) {
+    $output .= theme('table', $headers, $rows, array());
+  }
+  
+  else {
+    $output .= "No ClickBank Products - Use the 'Register ClickBank Product' Link to register products";
+  }
+  
+  return $output;
+}
+
+/**
+ * Receive the IPN from ClickBank
+ */
+function ms_clickbank_ipn(){
+  $ipn = ms_clickbank_ipn_handler(variable_get('ms_clickbank_secret_key', ''));
+  
+  if ($ipn){
+    if (variable_get('ms_core_debug_mode', FALSE)) {
+      watchdog('ms_clickbank', 'Received IPN: %data', array('%data' => print_r($ipn, TRUE)));
+    }
+    
+    $cb_product = ms_clickbank_load_clickbank_product_by_id($ipn['cproditem']);
+    
+    if ($cb_product->cbpid) {
+      // Load the account from the email
+      if (!$account = user_load(array('mail' => $ipn['ccustemail']))) {
+        // Create an account if no existing account
+        if (variable_get('ms_core_debug_mode', FALSE)){
+          watchdog('ms_clickbank', 'Attempting to Create User from Email: !email', array('!email' => $ipn['ccustemail']));
+        }
+        
+        $pass = user_password();
+        $account = user_save('', array(
+          'name' => $ipn['ccustemail'],
+          'mail' => $ipn['ccustemail'],
+          'init' => $ipn['ccustemail'],
+          'pass' => $pass,
+          'roles' => array(),
+          'status' => 1
+          ));
+        $account->password = $pass;
+        //Send the Default Email
+        _user_mail_notify('register_no_approval_required', $account);
+      }
+      
+      // Add the product to the order
+      switch ($cb_product->module) {
+        case 'ms_membership':
+          if (module_exists('ms_membership')) {
+            $m_plan = ms_membership_load_membership_plan($cb_product->product_id);
+            
+            if ($m_plan->mpid) {
+              // Create a new order
+              $order = ms_core_order_new('cart', $account->uid);
+              
+              // Add the Product
+              $product = new stdClass();
+              
+              $product->type = 'cart';
+              // Add the product variables
+              $product->name = $m_plan->name;
+              $product->module = 'ms_membership';
+              $product->qty = 1;
+              $product->amount = $m_plan->main_amount;
+              $product->id = $m_plan->mpid;
+              
+              $order = ms_core_add_order_product($order, $product);
+              
+              // Enter a Payment for the order
+              $payment = new stdClass();
+              $payment->oid = $order->oid;
+              $payment->gateway = 'ms_clickbank';
+              $payment->type = ms_clickbank_get_payment_type($ipn['ctransaction']);
+              $payment->amount = number_format(floatval($ipn['ctransamount']) / 100, 2);
+              $payment->currency = 'USD';
+              $payment->full_name = $ipn['ccustname'];
+              $payment->transaction = $ipn['ctransreceipt'];
+              $payment->recurring_schedule = array();
+              $payment->shipping_address = array(
+                'street' => '',
+                'city' => '',
+                'state' => $ipn['ccuststate'],
+                'zip' => '',
+                'country' => $ipn['ccustcc'],
+                'phone' => '',
+              );
+              $payment->billing_address = $payment->shipping_address;
+              $payment->data = $ipn;
+              
+              // Add the Payment to the Order
+              ms_core_enter_payment($payment, FALSE);
+            }
+          }
+        break;
+        
+        case 'ms_files':
+          
+        break;
+      }
+    }
+    else {
+      watchdog('ms_clickbank', 'Received an IPN for a product that was not registered.');
+    }
+  }
+  else {
+    watchdog('ms_clickbank', 'Error Validating the IPN, try checking your Secret Key setting.');
+  }
+}
+
+// ======================================
+// Functions:
+// ======================================
+
+/**
+ * Implementation of hook_ms_payment_gateway
+ */
+function ms_clickbank_ms_payment_gateway() {
+  $gateway[] = array(
+    'name' => 'ClickBank',
+    'description' => 'Pay with a Credit Card or PayPal account',
+    'module' => 'ms_clickbank',
+    'path' => 'ms/checkout/clickbank',
+    'settings_form' => '',
+    'cancel_url' => '',
+    'recurring' => FALSE,
+    'cart' => FALSE,
+    );
+  
+  return $gateway;
+}
+
+function ms_clickbank_get_payment_type($type) {
+  switch ($type) {
+    case 'SALE':
+    case 'TEST':
+      return 'cart';
+    break;
+    case 'BILL':
+      return 'rec_payment';
+    break;
+    case 'CANCEL-REBILL':
+      return 'rec_cancel';
+    break;
+    case 'RFND':
+      return 'refund';
+    break;
+    case 'CGBK':
+    case 'INSF':
+      return 'reversal';
+    break;
+    default:
+      return 'cart';
+    break;
+  }
+}
+
+/*
+ * Colors for txn_type
+ */ 
+function ms_clickbank_get_txn_type($txn_type){
+  switch ($txn_type){
+    case 'SALE': return "<span style='color:green;'>Sale</span>";
+    case 'BILL': return "<span style='color:blue;'>Payment</span>";
+    case 'RFND': return "<span style='color:orange;'>Refund</span>";
+    case 'CGBK': return "<span style='color:red;'>Chargeback</span>";
+    case 'INSF': return "<span style='color:red;'>e-Check Chargeback</span>";
+    case 'CANCEL-REBILL': return "<span style='color:red;'>Cancellation</span>";
+    case 'UNCANCEL-REBILL': return "<span style='color:green;'>Un-Cancellation</span>";
+    case 'TEST': return "<span style='color:purple;'>Test</span>";
+    default: return $txn_type;
+  }
+}
+
+/*
+ * The IPN Callback Handler
+ */
+function ms_clickbank_ipn_handler($secretKey) {
+  //Validate the ipn
+  if (ms_clickbank_verify_ipn($_REQUEST, $secretKey)){
+    foreach ($_POST as $field=>$value) {
+     $ipn["$field"] = $value;
+    }
+    return $ipn;
+  }
+}
+
+/*
+ * Return a valid cverify code
+ */
+function ms_clickbank_get_verify($request, $secretKey){
+  $ccustname = $request['ccustname'];
+	$ccustemail = $request['ccustemail'];
+	$ccustcc = $request['ccustcc'];
+	$ccuststate = $request['ccuststate'];
+	$ctransreceipt = $request['ctransreceipt'];
+	$cproditem = $request['cproditem'];
+	$ctransaction = $request['ctransaction'];
+	$ctransaffiliate = $request['ctransaffiliate'];
+	$ctranspublisher = $request['ctranspublisher'];
+	$cprodtype = $request['cprodtype'];
+	$cprodtitle = $request['cprodtitle'];
+	$ctranspaymentmethod = $request['ctranspaymentmethod'];
+	$ctransamount = $request['ctransamount'];
+	$caffitid = $request['caffitid'];
+	$cvendthru = $request['cvendthru'];
+	$cverify = $request['cverify'];
+	
+  $xverify = sha1("$ccustname|$ccustemail|$ccustcc|$ccuststate|$ctransreceipt|$cproditem|$ctransaction|"
+		."$ctransaffiliate|$ctranspublisher|$cprodtype|$cprodtitle|$ctranspaymentmethod|$ctransamount|$caffitid|$cvendthru|$secretKey");
+
+  $xverify = strtoupper(substr($xverify,0,8));
+
+  return $xverify;
+}
+
+/*
+ * Validate the Cipher
+ */
+function ms_clickbank_verify_ipn($request, $secretKey){
+  $ccustname = $request['ccustname'];
+	$ccustemail = $request['ccustemail'];
+	$ccustcc = $request['ccustcc'];
+	$ccuststate = $request['ccuststate'];
+	$ctransreceipt = $request['ctransreceipt'];
+	$cproditem = $request['cproditem'];
+	$ctransaction = $request['ctransaction'];
+	$ctransaffiliate = $request['ctransaffiliate'];
+	$ctranspublisher = $request['ctranspublisher'];
+	$cprodtype = $request['cprodtype'];
+	$cprodtitle = $request['cprodtitle'];
+	$ctranspaymentmethod = $request['ctranspaymentmethod'];
+	$ctransamount = $request['ctransamount'];
+	$caffitid = $request['caffitid'];
+	$cvendthru = $request['cvendthru'];
+	$cverify = $request['cverify'];
+	
+  $xverify = sha1("$ccustname|$ccustemail|$ccustcc|$ccuststate|$ctransreceipt|$cproditem|$ctransaction|"
+		."$ctransaffiliate|$ctranspublisher|$cprodtype|$cprodtitle|$ctranspaymentmethod|$ctransamount|$caffitid|$cvendthru|$secretKey");
+
+  $xverify = strtoupper(substr($xverify,0,8));
+
+  if ($cverify == $xverify){
+    return TRUE;
+  }
+	else{
+    return FALSE;
+  }
+}
+
+/**
+ * Load a saved clickbank product from the database
+ */
+function ms_clickbank_load_clickbank_product_by_id($clickbank_id) {
+  $result = db_query("SELECT * FROM {ms_clickbank_products} WHERE clickbank_id = '%s'", $clickbank_id);
+  if (!empty($result)) {
+    $cb_product = db_fetch_object($result);
+    return $cb_product;
+  }
+  return FALSE;
+}
+
+/**
+ * Load a saved clickbank product from the database
+ */
+function ms_clickbank_load_clickbank_product($cbpid) {
+  $result = db_query("SELECT * FROM {ms_clickbank_products} WHERE cbpid=%d", $cbpid);
+  if (!empty($result)) {
+    $cb_product = db_fetch_object($result);
+    return $cb_product;
+  }
+  return FALSE;
+}
+
+// ======================================
+// Forms:
+// ======================================
+
+/**
+ * Delete a ClickBank Product
+ */
+function ms_clickbank_delete_clickbank_product_confirm(&$form_state, $cbpid) {
+  $cb_product = ms_clickbank_load_clickbank_product($cbpid);
+  if ($cb_product->cbpid) {
+    $form['#cbp_id'] = $cb_product->cbpid;
+    return confirm_form($form, t('Are you sure you want to delete this ClickBank Product: %cbprod?', array('%cbprod' => $cb_product->name)), 'admin/moneyscripts/gateways/ms_clickbank/products/list', t('This action cannot be undone.'), t('Delete'));
+  }
+  else {
+    drupal_not_found();
+  }
+}
+
+/**
+ * Delete a ClickBank Product
+ */
+function ms_clickbank_delete_clickbank_product_confirm_submit($form, &$form_state) {
+  $cbpid = $form['#cbp_id'];
+  $cb_product = ms_clickbank_load_clickbank_product($cbpid);
+  
+  // Delete the clickbank product
+  $result = db_query("DELETE FROM {ms_clickbank_products} WHERE cbpid = %d", $cb_product->cbpid);
+
+  drupal_set_message(t('ClickBank Product %cbprod has been deleted', array('%cbprod' => $cb_product->name)));
+  $form_state['redirect'] = 'admin/moneyscripts/gateways/ms_clickbank/products/list';
+}
+
+function ms_clickbank_product_form($form_state, $action, $cbpid = NULL) {
+  $is_edit = FALSE;
+  
+  // -----------------------------
+  // ClickBank Product Info Settings
+  // -----------------------------
+  $form['main'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('ClickBank Product Info'),
+    '#collapsible' => FALSE,
+    '#collapsed' => FALSE,
+  );
+  
+  if ($action == 'edit') {
+    $is_edit = TRUE;
+    $cb_product = ms_clickbank_load_clickbank_product($cbpid);
+    // Store the Membership Plan ID
+    $form['main']['cbpid'] = array(
+      '#type' => 'value',
+      '#value' => $cb_product->cbpid, 
+    );
+  }
+  
+  $form['main']['name'] = array(
+    '#type' => 'textfield',
+    '#title' => t('ClickBank Product Name'),
+    '#size' => 32,
+    '#maxlength' => 128,
+    '#description' => t("The Name of this ClickBank Product"),
+    '#default_value' => ($is_edit) ? $cb_product->name : '',
+    '#required' => TRUE,
+  );
+  $form['main']['clickbank_id'] = array(
+    '#type' => 'textfield',
+    '#title' => t('ClickBank Product ID'),
+    '#size' => 32,
+    '#maxlength' => 128,
+    '#description' => t("The ID Number of the ClickBank Product to Register. This can be found in your ClickBank Account"),
+    '#default_value' => ($is_edit) ? $cb_product->clickbank_id : '',
+    '#required' => TRUE,
+  );
+  $form['main']['module'] = array(
+    '#type' => 'select',
+    '#title' => t('Module'),
+    '#options' => array(
+      'ms_membership' => t('Membership Suite'),
+      'ms_files' => t('File Downloads Suite'),
+    ),
+    '#description' => t("Which Module to Integrate with"),
+    '#default_value' => ($is_edit) ? $cb_product->module : '',
+    '#required' => TRUE,
+  );
+  $form['main']['product_id'] = array(
+    '#type' => 'textfield',
+    '#title' => t('MoneyScripts Product ID'),
+    '#size' => 32,
+    '#maxlength' => 128,
+    '#description' => t("The ID Number of the MoneyScripts product you want to link."),
+    '#default_value' => ($is_edit) ? $cb_product->product_id : '',
+    '#required' => TRUE,
+  );
+  
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Save'),
+  );
+  $form['#redirect'] = 'admin/moneyscripts/gateways/ms_clickbank/products/list';
+  
+  return $form;
+}
+
+function ms_clickbank_product_form_validate($form, &$form_state) {
+  $v = $form_state['values'];
+}
+
+/**
+ * Submit Function for the Add ClickBank Product Form
+ */
+function ms_clickbank_product_form_submit($form, &$form_state) {
+  $form_values = (object) $form_state['values'];
+  
+  if ($form_values->cbpid) {
+    $cb_product = ms_clickbank_load_clickbank_product($form_values->cbpid);
+  }
+  else {
+    $cb_product = new stdClass();
+  }
+  
+  // Set the values
+  $cb_product->name = $form_values->name;
+  $cb_product->module = $form_values->module;
+  $cb_product->product_id = $form_values->product_id;
+  $cb_product->clickbank_id = $form_values->clickbank_id;
+  
+  if ($form_values->cbpid) {
+    $cb_product->mpid = $form_values->mpid;
+    drupal_write_record('ms_clickbank_products', $cb_product, 'cbpid');
+  }
+  else {
+    drupal_write_record('ms_clickbank_products', $cb_product);
+  }
+  
+  drupal_set_message(t('ClickBank Product Saved: %sname.', array('%sname' => $cb_product->name)));
+}

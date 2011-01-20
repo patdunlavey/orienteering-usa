@@ -1,0 +1,9 @@
+; $Id: $
+name = Membership Suite
+description = Sell Membership to your Drupal Site
+package = MoneyScripts
+dependencies[] = ms_core
+version = "6.x-6.12"
+core = "6.x"
+project = "ms_membership"
+datestamp = "1280738116"

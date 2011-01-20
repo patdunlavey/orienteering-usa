@@ -1,0 +1,13 @@
+/* $Id: table.css,v 1.1.2.2 2008/11/21 22:54:27 jeffcd Exp $ */
+
+.yui-skin-sam .yui-toolbar-container .yui-toolbar-table span.yui-toolbar-icon {
+  background-image: url( ../assets/icons.gif );
+  background-position: -580px -22px;
+  left: 5px;
+}
+
+.yui-skin-sam .yui-toolbar-container .yui-button-table-selected span.yui-toolbar-icon {
+  background-image: url( ../assets/icons.gif );
+  background-position: -580px -22px;
+  left: 5px;
+}

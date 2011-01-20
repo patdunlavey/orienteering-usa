@@ -1,0 +1,421 @@
+<?php
+// $Id: nodereference_variables.module,v 1.1.2.1 2009/07/02 17:36:45 rareface Exp $
+
+/*
+ * Created by Greg Harvey on 1 Jul 2009
+ *
+ * http://www.drupaler.co.uk
+ */
+
+/**
+ * Implementation of hook_preprocess_node().
+ * 
+ * Adds the fully loaded node object for each referenced Node 
+ * Reference node attached to the parent node, E.g. if you 
+ * have a Node Reference field called field_foo and it has 
+ * three values, the loaded nodes will be accessible using:
+ * 
+ * print_r($field_foo[0]['node']);
+ * print_r($field_foo[1]['node']);
+ * print_r($field_foo[2]['node']);
+ * 
+ * Also adds the rendered mark-up for the node, if requested:
+ * 
+ * print $field_foo[0]['node_rendered'];
+ * print $field_foo[1]['node_rendered'];
+ * print $field_foo[2]['node_rendered'];
+ * 
+ * Finally, adds jQuery tabs for each Node Reference field
+ * value, rendered and ready to use in this variable:
+ * 
+ * $nodereference_tabs
+ * 
+ * Note, all options can be disabled at:
+ * admin/content/nodereference_variables
+ */
+function nodereference_variables_preprocess_node(&$vars) {
+  
+  // check we want the variables
+  if (variable_get('nodereference_variables_enabled', TRUE) && $vars['id'] === 1) {
+  
+    // load the node for convenience
+    $node = $vars['node'];
+  
+    // load the field info for this content type
+    $fields = content_types($node->type);
+  
+    // loop through available fields
+    foreach ($fields['fields'] as $fieldname => $field) {
+      // check to see if current field is a nodereference
+      if ($field['type'] == 'nodereference') {
+        // if so, stick it in a var
+        $thisfield = $node->$fieldname;
+        
+        // make sure the nodereference field has some values
+        if ($thisfield[0]['nid']) {
+
+          // then loop through the field values to load the nodes
+          foreach ($thisfield as $key => $values) {
+            // just double-check there is actually a value
+            if ($values['nid']) {
+              // add the node object to the existing field array
+              $vars[$fieldname][$key]['node'] = node_load($values['nid']);
+            
+              // check we want the mark-up
+              if (variable_get('nodereference_variables_render_enabled', TRUE)) {
+                // add the rendered node for display to the existing field array
+                $vars[$fieldname][$key]['node_rendered'] = node_view($vars[$fieldname][$key]['node']);
+              }            
+            }
+          }
+        }
+        
+      }
+    }
+  
+  }
+  
+  // if the tabs module exists, put our jQuery tabs in a var
+  // using $vars['id'] to make sure this only fires on the first pass (e.g. the parent node)
+  if (module_exists('tabs') && variable_get('nodereference_variables_tabs_enabled', TRUE) && $vars['id'] === 1) {
+    // we pass an array of field names to become tabs stored in 'nodereference_variables_tabs_fields'
+    $vars['nodereference_tabs'] = tabs_render(nodereference_variables_tabs($vars['node'], variable_get('nodereference_variables_tabs_fields', array())));
+  }
+}
+
+/**
+ * Helper function (not actually used by module) for
+ * returning all the node objects attached to a particular
+ * node via Node Reference.
+ * 
+ * @param $nid
+ *  int - valid node ID you wish to load child nodes from
+ * 
+ * @param $fields
+ *  arr (optional) - array of field names you wish to
+ *  return values for, keyed by field_name
+ * 
+ * @param $rendered
+ *  bool - whether or not to append rendered node to return
+ * 
+ * @return
+ *  arr - keyed array of fieldnames and values in the form:
+ *  
+ *  Array
+ *   (
+ *      [field_name] => Array
+ *        (
+ *          [0] => Array
+ *            (
+ *              [node] => stdClass Object
+ *                (
+ *                  NODE OBJECT HERE
+ *                )
+ *              [node_rendered]
+ *                (
+ *                  MARK-UP OF NODE HERE (optional)
+ *                )
+ *            )
+ *        )
+ *    )
+ */
+function nodereference_variables_return_nodes($nid, $fields = array(), $rendered = FALSE) {
+  $output = array();
+  
+  // load our parent node
+  $node = node_load($nid);
+  
+  // load the field info for this content type
+  $content_fields = content_types($node->type);
+  
+  // prepare $fields for processing (weed out unset fields)
+  if ($fields) {
+    foreach ($fields as $key => $value) {
+      if ($value) {
+        $fields[] = $value;
+        unset($fields[$value]);
+      }
+      else {
+        unset($fields[$key]);
+      }
+    }
+  }
+  
+  // if we're only returning specific fields
+  if ($fields) {
+    // loop through the fields we're supposed to return
+    foreach ($fields as $field) {
+      // check the field exists on this node
+      if ($content_fields['fields'][$field]) {
+        // check it is a nodereference field
+        if ($content_fields['fields'][$field]['type'] == 'nodereference') {
+          // set the field as a variable
+          $thisfield = $node->$field;
+          
+          // then loop through the field values to load the nodes
+          foreach ($thisfield as $key => $values) {
+            // just double-check there is actually a value
+            if ($values['nid']) {
+              // add the node object to our output array
+              $output[$field][$key]['node'] = node_load($values['nid']);
+              if ($rendered) {
+                // add the rendered node for display to our output array
+                $output[$field][$key]['node_rendered'] = node_view($output[$field][$key]['node']);
+              }
+            }
+          }
+        }
+        else {
+          drupal_set_message(t('The requested Node Reference field, !field, is not of type Node Reference so cannot be used.', array('!field' => $field)), 'error');
+        }
+      
+      }
+      else {
+        drupal_set_message(t('The requested Node Reference field, !field, does not exist for this content type.', array('!field' => $field)), 'error');
+      }
+    }
+    // return the results
+    return $output;
+  }
+  else {
+    // loop through available fields
+    foreach ($content_fields['fields'] as $fieldname => $field) {
+      // check to see if current field is a nodereference
+      if ($field['type'] == 'nodereference') {
+        // if so, place it in a var
+        $thisfield = $node->$fieldname;
+        // make sure the nodereference field has some values
+        if ($thisfield[0]['nid']) {
+          // then loop through the field values to load the nodes
+          foreach ($thisfield as $key => $values) {
+            // just double-check there is actually a value
+            if ($values['nid']) {
+              // add the node object to our output array
+              $output[$fieldname][$key]['node'] = node_load($values['nid']);
+              if ($rendered) {
+                // add the rendered node for display to our output array
+                $output[$fieldname][$key]['node_rendered'] = node_view($output[$fieldname][$key]['node']);
+              }
+            }
+          }
+        }
+      }
+    }
+    // return the results
+    return $output;
+  }
+}
+
+/**
+ * Implementation of hook_menu().
+ */
+function nodereference_variables_menu() {
+  $items = array();
+  
+  $items['admin/content/nodereference_variables'] = array(
+    'title' => t('Node Reference Variables'),
+    'description' => t('Settings for the Node Reference Variables module.'),
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('nodereference_variables_admin_settings_form'),
+    'access arguments' => array('administer content'),
+  );
+  
+  return $items;
+}
+
+/**
+ * Admin settings form.
+ */
+function nodereference_variables_admin_settings_form() {
+  $form = array();
+  
+  $disabled = TRUE;
+  
+  $form['nodereference_variables_enabled'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Enable Node Reference node objects in node.tpl.php.'),
+    '#description' => t('If you intend to only use the helper function, you may not need the variables.'),
+    '#default_value' => variable_get('nodereference_variables_enabled', TRUE),
+  );
+  
+  if (variable_get('nodereference_variables_enabled', TRUE)) {
+    $disabled = FALSE;
+  }
+  $form['nodereference_variables_render_enabled'] = array(
+    '#type' => 'checkbox',
+    '#disabled' => $disabled,
+    '#title' => t('Enable rendered mark-up for Node Reference nodes in node.tpl.php.'),
+    '#description' => t('If "Enable Node Reference node objects" (above) is disabled then this setting does nothing. However, when "Enable Node Reference node objects" is enabled then this is used to enable/disable the additional fully rendered node mark-up.'),
+    '#default_value' => variable_get('nodereference_variables_render_enabled', TRUE),
+  );
+  
+  $disabled = TRUE;
+  
+  // if the tabs module is present, offer jQuery tabs option
+  if (module_exists('tabs')) {
+    
+    $nodereference_fields = array();
+    // get all CCK fields
+    $fields = content_fields();
+    
+    // loop through them and save the nodereference ones in an array for our form
+    foreach ($fields as $field) {
+      if ($field['type'] == 'nodereference') {
+        $nodereference_fields[$field['field_name']] = $field['widget']['label'];
+      }
+    }
+    
+    $form['nodereference_variables_tabs'] = array(
+      '#type' => 'fieldset',
+      '#collapsible' => TRUE,
+      '#collapsed' => FALSE,
+      '#title' => t('jQuery Tabs Options'),
+      '#description' => t('To use these options in your node.tpl.php file substitute the $content variable for $nodereference_tabs.'),
+    );
+    
+    $form['nodereference_variables_tabs']['nodereference_variables_tabs_parentset_title'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Override the node title as the parent tab title'),
+      '#description' => t('You may specify a title for your parent node tab here. Leave it blank and the node title will be used.'),
+      '#default_value' => variable_get('nodereference_variables_tabs_parentset_title', NULL),
+    );
+    
+    if ($nodereference_fields) {
+      $form['nodereference_variables_tabs']['nodereference_variables_tabs_fields'] = array(
+        '#type' => 'checkboxes',
+        // uses the array of nodereference fields set above
+        '#options' => $nodereference_fields,
+        '#title' => t('Choose the fields you want to use as tabs'),
+        '#description' => t('If you select no fields, then all fields will be used.'),
+        '#default_value' => variable_get('nodereference_variables_tabs_fields', array()),
+      );
+    }
+    
+    $form['nodereference_variables_tabs']['nodereference_variables_tabs_enabled'] = array(
+      '#type' => 'checkbox',
+      '#title' => t('Enable jQuery UI tabs in node.tpl.php'),
+      '#description' => t('This can be used independently of other options to put jQuery tabs, ready to use (one for each Node Reference value) in to node.tpl.php'),
+      '#default_value' => variable_get('nodereference_variables_tabs_enabled', TRUE),
+    );
+    
+    $form['nodereference_variables_tabs']['nodereference_variables_tabs_multisets_enabled'] = array(
+      '#type' => 'checkbox',
+      '#title' => t('Enable multiple sets of tabs (one for each Node Reference field) in node.tpl.php'),
+      '#description' => t('If this is enabled then each Node Reference field and corresponding values will be treated as a separate tabset by the tabs module.'),
+      '#default_value' => variable_get('nodereference_variables_tabs_multisets_enabled', FALSE),
+    );
+    
+    if (variable_get('nodereference_variables_tabs_multisets_enabled', FALSE)) {
+      $disabled = FALSE;
+    }
+    $form['nodereference_variables_tabs']['nodereference_variables_tabs_parentset_enabled'] = array(
+      '#type' => 'checkbox',
+      '#disabled' => $disabled,
+      '#title' => t('Give the parent node its own tabset'),
+      '#description' => t('If this is enabled then the parent node will be in a tabset on its own. Otherwise it will be grouped with the first tabset created.'),
+      '#default_value' => variable_get('nodereference_variables_tabs_parentset_enabled', FALSE),
+    );
+    $disabled = TRUE;
+  }
+  else {
+    drupal_set_message(t('If you install !tabs you will have additional jQuery UI options.', array('!tabs' => l('the Tabs module', 'http://drupal.org/project/tabs'))), 'warning');
+  }
+  
+  
+  // add default settings form buttons to form and return
+  // this will also fire default settings submit func, so no need for our own
+  return system_settings_form($form);
+}
+
+/**
+ * Tabs array for tabbed interface on nodes (works like FAPI)
+ * See: 
+ * http://cvs.drupal.org/viewvc.py/drupal/contributions/modules/tabs/docs/tabsexample.module?revision=1.2&view=markup&pathrev=HEAD
+ * 
+ * @param $node
+ *  object - the node object of the parent node
+ * 
+ * @param $fields
+ *  arr (optional) - array of field names you wish to
+ *  return values for, keyed by field_name
+ * 
+ * @return
+ *  arr - in a similar form to the FAPI for the Tabs module's
+ *  tabs_render() function to process
+ */
+function nodereference_variables_tabs($node, $fields = array()) {
+  $tabs = array();
+  
+  // load our flag for multiple tabsets
+  $multisets = variable_get('nodereference_variables_tabs_multisets_enabled', FALSE);
+  
+  // load our flag for parent having own tabset
+  $parentset = variable_get('nodereference_variables_tabs_parentset_enabled', FALSE);
+  
+  if (variable_get('nodereference_variables_tabs_parentset_title', NULL)) {
+    $parenttabtitle = t(variable_get('nodereference_variables_tabs_parentset_title', NULL));
+  }
+  else {
+    $parenttabtitle = t($node->title);
+  }
+  
+  // set up our base tabset and parent node tab if required
+  if (($parentset && $multisets) || !$multisets) {
+    $tabs['nodereference_tabs'] = array(
+      '#type' => 'tabset',
+    );
+    
+    // set the parent node's tab
+    $tabs['nodereference_tabs']['parent'] = array(
+      '#type' => 'tabpage',
+      '#title' => $parenttabtitle,
+      '#content' => $node->body,
+    );
+  }
+  
+  $parent_isset = FALSE;
+  
+  // load and loop through available nodereference fields
+  foreach (nodereference_variables_return_nodes($node->nid, $fields, TRUE) as $key => $field) {
+    // if we do want multiple tabsets, set one for each field
+    if ($multisets) {
+      $tabs[$key] = array(
+        '#type' => 'tabset',
+      );
+    }
+    
+    // if we need to add our parent node to the first field, do so here
+    if (!$parentset && $multisets && !$parent_isset) {
+      // set the parent node's tab in the first field tabset
+      $tabs[$key]['parent'] = array(
+        '#type' => 'tabpage',
+        '#title' => $parenttabtitle,
+        '#content' => $node->body,
+      );
+      $parent_isset = TRUE;
+    }
+    
+    // loop through values for each field
+    foreach ($field as $value_key => $values) {
+      // build the tabs array for a tab containing this node
+      
+      if ($multisets) {
+        $tabs[$key][$value_key] = array(
+          '#type' => 'tabpage',
+          '#title' => t($values['node']->title),
+          '#content' => $values['node_rendered'],
+        );
+      }
+      else {
+        $tabs['nodereference_tabs'][$key.'_'.$value_key] = array(
+          '#type' => 'tabpage',
+          '#title' => t($values['node']->title),
+          '#content' => $values['node_rendered'],
+        );
+      }
+      
+    }
+  }
+  
+  return $tabs;
+}

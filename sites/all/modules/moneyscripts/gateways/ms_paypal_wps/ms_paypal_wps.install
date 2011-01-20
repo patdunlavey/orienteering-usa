@@ -1,0 +1,11 @@
+<?php
+// $Id: $
+
+/**
+ * @file
+ */
+
+function ms_paypal_wps_uninstall() {
+  // Delete related variables all at once.
+  db_query("DELETE FROM {variable} WHERE name LIKE 'ms_paypal_wps_%%'");
+}

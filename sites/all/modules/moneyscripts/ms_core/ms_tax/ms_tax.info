@@ -1,0 +1,8 @@
+;$Id$
+name = MS Taxes
+description = Add Taxes to Orders
+version = 6.x-1.0
+core = 6.x
+package = MoneyScripts
+dependencies[] = ms_core
+datestamp = "1271138308"

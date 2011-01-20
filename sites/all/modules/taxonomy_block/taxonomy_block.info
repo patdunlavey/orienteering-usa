@@ -1,0 +1,16 @@
+; $Id: taxonomy_block.info,v 1.11 2009/11/11 10:19:10 thenicespider Exp $
+name = Taxonomy Block
+description = "This module used to display taxonomy in block which support i18n (multi-languages)."
+; Information added by drupal.org packaging script on 2009-03-27
+package = "Easy Module"
+version = "6.x-1.0-BETA4"
+core = "6.x"
+project = "taxonomy_block"
+datestamp = "1238152822"
+
+; Information added by drupal.org packaging script on 2009-11-11
+version = "6.x-1.0-beta4"
+core = "6.x"
+project = "taxonomy_block"
+datestamp = "1257935190"
+

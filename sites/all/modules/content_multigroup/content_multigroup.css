@@ -1,0 +1,9 @@
+/* $Id: content_multigroup.css,v 1.1 2009/11/25 14:10:06 ndeschildre Exp $ */
+
+label.content-multigroup {
+  font-weight:bold;
+}  
+
+/* Not styled by default, but available to style */
+hr.content-multigroup {
+}  

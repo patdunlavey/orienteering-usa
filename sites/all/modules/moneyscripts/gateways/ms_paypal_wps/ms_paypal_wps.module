@@ -1,0 +1,862 @@
+<?php
+// $Id$
+/**
+* @file
+* MoneyScripts Paypal WPS Gateway
+* Developed by Leighton Whiting for MoneyScripts.net (http://www.moneyscripts.net)
+* Copyright 2010 MoneyScripts.net
+*/
+
+/**
+* Display help and module information
+*/
+function ms_paypal_wps_help($path, $arg) {
+  $output = '';
+  switch ($path) {
+    case "admin/help#ms_paypal_wps":
+      $output = '<p>'.  t("PayPal WPS Payment Gateway Module for MoneyScripts") .'</p>';
+      break;
+  }
+  return $output;
+}
+
+function ms_paypal_wps_access_test() {
+  // The PayPal IPN should always have access
+  return TRUE;
+}
+
+function ms_paypal_wps_modify_test($oid, $id) {
+  global $user;
+  $order = ms_core_order_load($oid);
+  if ($order->uid == $user->uid) {
+    return TRUE;
+  }
+  return FALSE;
+}
+
+/**
+ * Implementation of hook_menu
+ */
+function ms_paypal_wps_menu() {
+  $items = array();
+  $items['paypal/backend'] = array(
+    'title' => 'Backend',
+    'page callback' => 'ms_paypal_wps_ipn',
+    'access callback' => 'ms_paypal_wps_access_test',
+    'type' => MENU_CALLBACK,
+  );
+  $items['lm_paypal/ipn'] = array(
+    'title' => 'Backend',
+    'page callback' => 'ms_paypal_wps_lm_paypal_ipn',
+    'access callback' => 'ms_paypal_wps_access_test',
+    'type' => MENU_CALLBACK,
+  );
+  $items['ms/checkout/paypal_wps'] = array(
+    'title' => 'Checkout',
+    'page callback' => 'ms_paypal_wps_initiate_payment',
+    'access callback' => 'ms_paypal_wps_access_test',
+    'type' => MENU_CALLBACK,
+  );
+  $items['ms_paypal_wps/thank-you'] = array(
+    'title' => 'Thank You',
+    'page callback' => 'ms_paypal_wps_thankyou_page',
+    'access callback' => 'ms_paypal_wps_access_test',
+    'type' => MENU_CALLBACK,
+  );
+  $items['ms_paypal_wps/modify/%/%'] = array(
+    'title' => 'Modify Payments',
+    'page callback' => 'ms_paypal_wps_modify_page',
+    'page arguments' => array(2, 3),
+    'access callback' => 'ms_paypal_wps_modify_test',
+    'access arguments' => array(2, 3),
+    'type' => MENU_CALLBACK,
+  );
+  $items['admin/moneyscripts/gateways/ms_paypal_wps'] = array(
+    'title' => 'PayPal WPS',
+    'description' => 'Set the various PayPal WPS Settings here',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('ms_paypal_wps_admin'),
+    'access arguments' => array('administer moneyscripts settings'),
+    'type' => MENU_NORMAL_ITEM,
+   );
+
+  return $items;
+}
+
+// ======================================
+// Administration Page:
+// ======================================
+
+/**
+ * Admin Settings Form
+ */
+function ms_paypal_wps_admin() {
+  $form['main'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Main Settings'),
+    '#collapsible' => FALSE,
+    '#collapsed' => FALSE,
+  );
+  $form['advanced'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Advanced Settings'),
+    '#collapsible' => TRUE,
+    '#collapsed' => TRUE,
+  );
+  
+  // -----------------------------
+  // Main Settings
+  // -----------------------------
+  $form['main']['ms_paypal_wps_email'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Seller PayPal Email'),
+    '#size' => 32,
+    '#maxlength' => 64,
+    '#default_value' => variable_get('ms_paypal_wps_email', ''),
+    '#description' => t("Enter your PayPal email address, where all the payments will go."),
+    '#required' => TRUE,
+  );
+  $form['main']['ms_paypal_wps_use_sandbox'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Use Sandbox for Testing?'),
+    '#default_value' => variable_get('ms_paypal_wps_use_sandbox', FALSE),
+    '#description' => t('You must have a PayPal Sandbox account to use this.'),
+    '#required' => FALSE,
+  );
+  $form['main']['ms_paypal_wps_paypal_page_text'] = array(
+    '#type' => 'textarea',
+    '#title' => t('PayPal Jump Page Text'),
+    '#description' => t("Fill in the text you wish the user to see for the Paypal Jump page. They will be redirected in 5 seconds if Javascript is enabled, otherwise a button is provided for them to click."),
+    '#required' => FALSE,
+    '#default_value' => variable_get('ms_paypal_wps_paypal_page_text', 
+"Please wait for a few seconds, your registration is being processed and you will be redirected to PayPal's secure payment page.
+<br/><br/>
+If you are not automatically redirected to the PayPal payment page within 5 seconds, click below:
+<br/><br/>"),
+  );
+  $form['main']['ms_paypal_wps_paypal_page_timeout'] = array(
+    '#type' => 'textfield',
+    '#title' => t('PayPal Jump Page Timeout'),
+    '#description' => t("How many seconds should the Jump Page wait until it automatically redirects?"),
+    '#required' => TRUE,
+    '#default_value' => variable_get('ms_paypal_wps_paypal_page_timeout', 0),
+  );
+  
+  // -----------------------------
+  // Advanced Settings
+  // -----------------------------
+  $form['advanced']['ms_paypal_wps_page_style'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Page Style Name'),
+    '#size' => 64,
+    '#maxlength' => 128,
+    '#default_value' => variable_get('ms_paypal_wps_page_style', ''),
+    '#description' => t("The style name of your custom paypal style. If you want to just use PayPal's Default style, leave this blank."),
+    '#required' => FALSE,
+  );
+  $form['advanced']['ms_paypal_wps_cancel_return'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Abort Payment Page'),
+    '#size' => 64,
+    '#maxlength' => 128,
+    '#default_value' => variable_get('ms_paypal_wps_cancel_return', ''),
+    '#description' => t("The Page the user will be returned to if they abort their payment from PayPal."),
+    '#required' => FALSE,
+  );
+  $form['advanced']['ms_paypal_wps_lc'] = array(
+    '#type' => 'select',
+    '#title' => t('Language Code'),
+    '#options' => array(
+      'US' => 'United States',
+      'GB' => 'United Kingdom',
+      'AU' => 'Australia',
+      'CA' => 'Canada',
+      'CZ' => 'Czech Republic',
+      'FR' => 'France',
+      'DE' => 'Germany',
+      'GR' => 'Greece',
+      'IL' => 'Israel',
+      'IT' => 'Italy',
+      'JP' => 'Japan',
+      'NL' => 'Netherlands',
+      'PL' => 'Poland',
+      'RU' => 'Russian Federation',
+      'ES' => 'Spain',
+      ),
+    '#default_value' => variable_get('ms_paypal_wps_lc', 0),
+    '#description' => t('Choose the Language Code to use.'),
+    '#required' => FALSE,
+  );
+  $form['advanced']['ms_paypal_wps_no_note'] = array(
+    '#type' => 'select',
+    '#title' => t('Prompt for Note?'),
+    '#options' => array(
+      '0' => 'Provide a text box and prompt for the note',
+      '1' => 'Hide the text box and prompt',
+      ),
+    '#default_value' => variable_get('ms_paypal_wps_no_note', 0),
+    '#description' => t('Prompt payers to include a note with their payments?'),
+    '#required' => FALSE,
+  );
+  $form['advanced']['ms_paypal_wps_no_shipping'] = array(
+    '#type' => 'select',
+    '#title' => t('Ask for Shipping Address?'),
+    '#options' => array(
+      '0' => 'Prompt for an address, but do not require one.',
+      '1' => 'Do not prompt for an address.',
+      '2' => 'Prompt for an address, and require one.',
+      ),
+    '#default_value' => 1,
+    '#default_value' => variable_get('ms_paypal_wps_no_shipping', ''),
+    '#description' => t('Should the user be asked for his/her shipping address?'),
+    '#required' => FALSE,
+  );
+  $form['advanced']['ms_paypal_wps_sra'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Try Again if Fail'),
+    '#return_value' => 1,
+    '#default_value' => variable_get('ms_paypal_wps_sra', FALSE),
+    '#description' => t("Attempt to try again if there is an error."),
+  );
+
+  return system_settings_form($form);
+}
+
+/**
+ * Module Override Settings Form
+ */
+function ms_paypal_wps_custom_settings_form($form_state, $defaults, $override = FALSE) {
+  $form['main'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Main Settings'),
+    '#collapsible' => FALSE,
+    '#collapsed' => FALSE,
+  );
+  $form['advanced'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Advanced Settings'),
+    '#collapsible' => TRUE,
+    '#collapsed' => TRUE,
+  );
+  
+  // -----------------------------
+  // Main Settings
+  // -----------------------------
+  $form['main']['ms_paypal_wps_email'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Seller PayPal Email'),
+    '#size' => 32,
+    '#maxlength' => 64,
+    '#default_value' => ($override) ? $defaults['main']['ms_paypal_wps_email'] : variable_get('ms_paypal_wps_email', ''),
+    '#description' => t("Enter your PayPal email address, where all the payments will go."),
+    '#required' => FALSE,
+  );
+  $form['main']['ms_paypal_wps_use_sandbox'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Use Sandbox for Testing?'),
+    '#default_value' => ($override) ? $defaults['main']['ms_paypal_wps_use_sandbox'] : variable_get('ms_paypal_wps_use_sandbox', FALSE),
+    '#description' => t('You must have a PayPal Sandbox account to use this.'),
+    '#required' => FALSE,
+  );
+  
+  // -----------------------------
+  // Advanced Settings
+  // -----------------------------
+  $form['advanced']['ms_paypal_wps_page_style'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Page Style Name'),
+    '#size' => 64,
+    '#maxlength' => 128,
+    '#default_value' => ($override) ? $defaults['advanced']['ms_paypal_wps_page_style'] : variable_get('ms_paypal_wps_page_style', ''),
+    '#description' => t("The style name of your custom paypal style. If you want to just use PayPal's Default style, leave this blank."),
+    '#required' => FALSE,
+  );
+  $form['advanced']['ms_paypal_wps_cancel_return'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Abort Payment Page'),
+    '#size' => 64,
+    '#maxlength' => 128,
+    '#default_value' => ($override) ? $defaults['advanced']['ms_paypal_wps_cancel_return'] : variable_get('ms_paypal_wps_cancel_return', ''),
+    '#description' => t("The Page the user will be returned to if they abort their payment from PayPal."),
+    '#required' => FALSE,
+  );
+  $form['advanced']['ms_paypal_wps_lc'] = array(
+    '#type' => 'select',
+    '#title' => t('Language Code'),
+    '#options' => array(
+      'US' => 'United States',
+      'GB' => 'United Kingdom',
+      'AU' => 'Australia',
+      'CA' => 'Canada',
+      'CZ' => 'Czech Republic',
+      'FR' => 'France',
+      'DE' => 'Germany',
+      'GR' => 'Greece',
+      'IL' => 'Israel',
+      'IT' => 'Italy',
+      'JP' => 'Japan',
+      'NL' => 'Netherlands',
+      'PL' => 'Poland',
+      'RU' => 'Russian Federation',
+      'ES' => 'Spain',
+      ),
+    '#default_value' => ($override) ? $defaults['advanced']['ms_paypal_wps_lc'] : variable_get('ms_paypal_wps_lc', ''),
+    '#description' => t('Choose the Language Code to use.'),
+    '#required' => FALSE,
+  );
+  $form['advanced']['ms_paypal_wps_no_note'] = array(
+    '#type' => 'select',
+    '#title' => t('Prompt for Note?'),
+    '#options' => array(
+      '0' => 'Provide a text box and prompt for the note',
+      '1' => 'Hide the text box and prompt',
+      ),
+    '#default_value' => ($override) ? $defaults['advanced']['ms_paypal_wps_no_note'] : variable_get('ms_paypal_wps_no_note', 0),
+    '#description' => t('Prompt payers to include a note with their payments?'),
+    '#required' => FALSE,
+  );
+  $form['advanced']['ms_paypal_wps_no_shipping'] = array(
+    '#type' => 'select',
+    '#title' => t('Ask for Shipping Address?'),
+    '#options' => array(
+      '0' => 'Prompt for an address, but do not require one.',
+      '1' => 'Do not prompt for an address.',
+      '2' => 'Prompt for an address, and require one.',
+      ),
+    '#default_value' => 1,
+    '#default_value' => ($override) ? $defaults['advanced']['ms_paypal_wps_no_shipping'] : variable_get('ms_paypal_wps_no_shipping', 0),
+    '#description' => t('Should the user be asked for his/her shipping address?'),
+    '#required' => FALSE,
+  );
+  $form['advanced']['ms_paypal_wps_sra'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Try Again if Fail'),
+    '#return_value' => 1,
+    '#default_value' => ($override) ? $defaults['advanced']['ms_paypal_wps_sra'] : variable_get('ms_paypal_wps_sra', FALSE),
+    '#description' => t("Attempt to try again if there is an error."),
+  );
+
+  return $form;
+}
+
+/**
+ * Receive the IPN from PayPal for LM PayPal migration
+ */
+function ms_paypal_wps_lm_paypal_ipn() {
+  require_once 'includes/ms_paypal_wps_class.php';
+  $ipn = ms_paypal_wps_ipn_handler($_POST);
+  
+  if ($ipn) {
+    if (variable_get('ms_core_debug_mode', FALSE)) {
+      watchdog('ms_paypal_wps', 'Successfully Received an LM PayPal IPN from PayPal. Here are the details: Data: !data', array('!data' => '<pre>'. print_r($ipn, TRUE) .'</pre>'));
+    }
+    
+    // Load the order based on the custom and other info
+    $oid = db_result(db_query("SELECT oid FROM {ms_orders} WHERE gateway = '%s' AND uid = %d", 'lm_paypal', $ipn['custom']));
+    
+    if (!$order = ms_core_order_load($oid)) {
+      // Load the order from the payments table by the recurring_id
+      $order = ms_core_order_load_by_rec_id($ipn['recurring_payment_id']);
+    }
+    
+    if ($order->oid) {
+      ms_paypal_wps_process_ipn($ipn, $order, 'lm_paypal');
+    }
+    else {
+      watchdog('ms_paypal_wps', 'Error loading the order for a LM_PayPal IPN: !data', array('!data' => '<pre>'. print_r($ipn, TRUE) .'</pre>'), WATCHDOG_ERROR);
+    }
+  }
+  else {
+    watchdog('ms_paypal_wps', 'Error: An LM PayPal IPN has Failed Validation. This may be from a spoofed IPN or an attempt to hack. Here are the details: Data: !data', array('!data' => '<pre>'. print_r($_REQUEST, TRUE) .'</pre>'), WATCHDOG_WARNING);
+  }
+}
+
+/**
+ * Process the IPN by adding a Payment record to an Order
+ */
+function ms_paypal_wps_process_ipn($ipn, $order, $gateway) {
+  // Insert the Payment to the order
+    $payment = new stdClass();
+    $payment->oid = $order->oid;
+    $payment->gateway = $gateway;
+    $payment->type = ms_paypal_wps_get_type($ipn['txn_type']);
+    $payment->transaction = $ipn['txn_id'];
+    $payment->amount = $ipn['mc_gross'];
+    $payment->currency = $ipn['mc_currency'];
+    $payment->recurring_id = ($ipn['subscr_id']) ? $ipn['subscr_id'] : $ipn['recurring_payment_id'];
+    $payment->data = $ipn;
+    $main_period = explode(' ', $ipn['period3']);
+    $trial_period = explode(' ', $ipn['period1']);
+    $payment->recurring_schedule = array(
+      'total_occurrences' => ($ipn['recur_times']) ? $ipn['recur_times'] : 0,
+      'main_amount' => $ipn['mc_amount3'],
+      'main_length' => $main_period[0],
+      'main_unit' => $main_period[1],
+      'has_trial' => ($trial_period[0]) ? TRUE : FALSE,
+      'trial_amount' => $ipn['mc_amount1'],
+      'trial_length' => $trial_period[0],
+      'trial_unit' => $trial_period[1],
+      );
+    // Update the address
+    $payment->shipping_address = array(
+      'street' => $ipn['address_street'],
+      'city' => $ipn['address_city'],
+      'state' => $ipn['address_state'],
+      'zip' => $ipn['address_zip'],
+      'country' => $ipn['address_country'],
+      'phone' => $ipn['contact_phone'],
+      );
+    $payment->billing_address = $payment->shipping_address;
+    // Update the contact details
+    $payment->full_name = $ipn['first_name'] .' '. $ipn['last_name'];
+    
+    switch ($payment->type) {
+      case 'rec_payment':
+        // Add the Payment to the Order
+        ms_core_enter_payment($payment, FALSE);
+      break;
+      
+      case 'rec_signup':
+        // Add the Payment to the Order
+        ms_core_enter_payment($payment);
+      break;
+      
+      case 'rec_failed':
+        // Log the failed payment
+        watchdog('ms_paypal_wps', 'Failed Payment IPN: <pre>'. print_r($ipn, TRUE) .'</pre>');
+        watchdog('ms_paypal_wps', 'Failed Payment: <pre>'. print_r($payment, TRUE) .'</pre>');
+        
+        // Add the Payment to the Order
+        ms_core_enter_payment($payment);
+      break;
+      
+      case 'cart':
+        // Check what the payment status is
+        switch ($ipn['payment_status']) {
+          case 'Completed':
+          case 'Processed':
+          case 'Canceled_Reversal':
+            // Add the Payment to the Order
+            ms_core_enter_payment($payment);
+          break;
+          
+          case 'Denied':
+          case 'Failed':
+          case 'Voided':
+          case 'Expired':
+            $payment->type = 'failed';
+            // Add the Payment to the Order
+            ms_core_enter_payment($payment);
+          break;
+          
+          case 'Reversed':
+            $payment->type = 'reversal';
+            // Add the Payment to the Order
+            ms_core_enter_payment($payment);
+          break;
+          
+          case 'Refunded':
+            $payment->type = 'refund';
+            // Add the Payment to the Order
+            ms_core_enter_payment($payment);
+          break;
+          
+          case 'Pending':
+            $payment->type = 'pending';
+            // Add the Payment to the Order
+            ms_core_enter_payment($payment);
+          break;
+        }
+      break;
+      
+      default:
+        // Add the Payment to the Order
+        ms_core_enter_payment($payment);
+      break;
+    }
+}
+
+/**
+ * Receive the IPN from PayPal, verify it, and load the associated order
+ */
+function ms_paypal_wps_ipn() {
+  require_once 'includes/ms_paypal_wps_class.php';
+  $ipn = ms_paypal_wps_ipn_handler($_POST);
+  
+  if ($ipn) {
+    if (variable_get('ms_core_debug_mode', FALSE)) {
+      watchdog('ms_paypal_wps', 'Successfully Received an IPN from PayPal. Here are the details: Data: !data', array('!data' => '<pre>'. print_r($ipn, TRUE) .'</pre>'));
+    }
+    
+    if (!$order = ms_core_order_load($ipn['custom'])) {
+      // Load the order from the payments table by the recurring_id
+      $order = ms_core_order_load_by_rec_id($ipn['recurring_payment_id']);
+    }
+    
+    if ($order->oid) {
+      ms_paypal_wps_process_ipn($ipn, $order, 'ms_paypal_wps');
+    }
+    else {
+      watchdog('ms_paypal_wps', 'Error loading the order for a Payment IPN: !data', array('!data' => '<pre>'. print_r($ipn, TRUE) .'</pre>'), WATCHDOG_ERROR);
+    }
+  }
+  else {
+    watchdog('ms_paypal_wps', 'Error: An IPN has Failed Validation. This may be from a spoofed IPN or an attempt to hack. Here are the details: Data: !data', array('!data' => '<pre>'. print_r($_REQUEST, TRUE) .'</pre>'), WATCHDOG_WARNING);
+  }
+}
+
+/**
+ * Get the Cancellation URL for a recurring order
+ */
+function ms_paypal_wps_get_cancel_url($order) {
+  $vars = ms_paypal_wps_get_vars($order);
+  if ($vars['use_sandbox']) {
+    $cancel_url = url("https://www.sandbox.paypal.com/cgi-bin/webscr?cmd=_subscr-find&alias="
+      . urlencode($vars['business']));
+  }
+  else {
+    $cancel_url = url("https://www.paypal.com/cgi-bin/webscr?cmd=_subscr-find&alias="
+      . urlencode($vars['business']));
+  }
+  
+  return $cancel_url;
+}
+
+/**
+ * Get the Modification URL for a recurring order
+ */
+function ms_paypal_wps_get_modify_url($order, $id) {
+  return 'ms_paypal_wps/modify/'. $order->oid .'/'. $id;
+}
+
+/**
+ * Initiate a modification
+ */
+function ms_paypal_wps_modify_page($oid, $id) {
+  $order = ms_core_order_load($oid);
+  $products = ms_core_load_module_product(ms_core_get_order_module($order), $id);
+  
+  $new_product = $products[0];
+  
+  $data['new_product'] = $new_product;
+  
+  $order = ms_core_add_data($order, $data);
+  
+  if ($order->order_type != 'recurring') {
+    // $order = ms_core_add_order_product($order, $new_product);
+    $order->order_type = 'recurring';
+    $order->recurring_schedule = $new_product->recurring_schedule;
+    // Start the Payment
+    $output = ms_paypal_wps_get_button($order, ms_core_get_order_title($order, 64, 2));
+  }
+  else {
+    $order->recurring_schedule = $new_product->recurring_schedule;
+    // Start the Payment
+    $output = ms_paypal_wps_get_button($order, ms_core_get_order_title($order, 64, 2), 2);
+  }
+  
+  print theme('page', $output);
+}
+
+/**
+ * Implementation of hook_ms_payment_gateway
+ */
+function ms_paypal_wps_ms_payment_gateway() {
+  $gateway[] = array(
+    'name' => 'PayPal Website Payments Standard',
+    'description' => 'Pay with a Credit Card or PayPal account',
+    'module' => 'ms_paypal_wps',
+    'path' => 'ms/checkout/paypal_wps',
+    'cancel_url' => 'ms_paypal_wps_get_cancel_url',
+    'modify_url' => 'ms_paypal_wps_get_modify_url',
+    'recurring' => TRUE,
+    'cart' => TRUE,
+  );
+  
+  return $gateway;
+}
+
+/**
+ * Implementation of hook_ms_product_override
+ */
+function ms_paypal_wps_ms_product_override() {
+  $gateway[] = array(
+    'name' => 'PayPal Website Payments Standard',
+    'module' => 'ms_paypal_wps',
+    'type' => array('all'),
+    'settings_form' => 'ms_paypal_wps_custom_settings_form',
+  );
+  
+  return $gateway;
+}
+
+// ======================================
+// Functions:
+// ======================================
+
+/*
+ * Helper Function to Use the Correct TXN type name for MS Core to use
+ */ 
+function ms_paypal_wps_get_type($txn) {
+  switch ($txn) {
+    case 'web_accept':
+      return 'cart';
+    case 'subscr_modify':
+      return 'rec_modify';
+    case 'subscr_signup':
+      return 'rec_signup';
+    case 'subscr_payment':
+      return 'rec_payment';
+    case 'subscr_cancel':
+      return 'rec_cancel';
+    case 'subscr_eot':
+      return 'rec_eot';
+    case 'refund':
+      return 'rec_refund';
+    case 'reverse':
+      return 'rec_reversal';
+    case 'recurring_payment_suspended_due_to_max_failed_payment':
+    case 'subscr_failed':
+      return 'rec_failed';
+    default:
+      return $txn;
+  }
+}
+
+/*
+ * Return the vars to use for an order
+ * These settings would normally be from the Settings page in the Admin area, 
+ * but they can also be overridden by a product in an order, so we will first
+ * check if the settings are being overridden, and if they are, we will use
+ * the overridden settings.    
+ */ 
+function ms_paypal_wps_get_vars($order) {
+  // Get the Vars to Use
+  if ($settings = ms_core_get_override_settings($order, 'ms_paypal_wps')) {
+    $vars = ms_paypal_wps_set_override_vars($settings);
+  }
+  else {
+    // Get the default variables for PayPal WPS
+    $vars = ms_paypal_wps_get_default_vars();
+  }
+  
+  return $vars;
+}
+
+/*
+ * Return the Default PayPal WPS Variables
+ */ 
+function ms_paypal_wps_get_default_vars() {
+  $vars = array(
+    'business' => variable_get('ms_paypal_wps_email', ''),
+    'use_sandbox' => variable_get('ms_paypal_wps_use_sandbox', FALSE),
+    'no_shipping' => variable_get('ms_paypal_wps_no_shipping', 1),
+    'return' => 'ms_paypal_wps/thank-you',
+    'cancel_return' => variable_get('ms_paypal_wps_cancel_return', ''),
+    'notify_url' => variable_get('ms_paypal_wps_notify_url', 'paypal/backend'),
+    'page_style' => variable_get('ms_paypal_wps_page_style', ''),
+    'currency_code' => variable_get('ms_core_default_currency', 'USD'),
+    'lc' => variable_get('ms_paypal_wps_lc', 'US'),
+    'no_note' => variable_get('ms_paypal_wps_no_note', 1),
+    'rm' => variable_get('ms_paypal_wps_rm', 2),
+    'sra' => variable_get('ms_paypal_wps_sra', FALSE),
+  );
+  
+  return $vars;
+}
+
+/*
+ * Map the Overridden Vars
+ */ 
+function ms_paypal_wps_set_override_vars($settings) {
+  $vars = array(
+    'business' => $settings['main']['ms_paypal_wps_email'],
+    'use_sandbox' => $settings['main']['ms_paypal_wps_use_sandbox'],
+    'no_shipping' => $settings['advanced']['ms_paypal_wps_no_shipping'],
+    'return' => 'ms_paypal_wps/thank-you',
+    'cancel_return' => $settings['advanced']['ms_paypal_wps_cancel_return'],
+    'notify_url' => variable_get('ms_paypal_wps_notify_url', 'paypal/backend'),
+    'page_style' => $settings['advanced']['ms_paypal_wps_page_style'],
+    'currency_code' => variable_get('ms_core_default_currency', 'USD'),
+    'lc' => $settings['advanced']['ms_paypal_wps_lc'],
+    'no_note' => $settings['advanced']['ms_paypal_wps_no_note'],
+    'rm' => variable_get('ms_paypal_wps_rm', 2),
+    'sra' => $settings['advanced']['ms_paypal_wps_sra'],
+  );
+  
+  return $vars;
+}
+
+/*
+ * Prep Variables for PayPal and Send
+ */ 
+function ms_paypal_wps_get_button($order, $title, $modify = NULL) {
+  $wps_vars = ms_paypal_wps_get_vars($order);
+  
+  // Use the correct link for Sandbox
+  if ($wps_vars['use_sandbox']) {
+    $ipn_link = 'https://www.sandbox.paypal.com/cgi-bin/webscr';
+  }
+  else {
+    $ipn_link = 'https://www.paypal.com/cgi-bin/webscr';
+  }
+  
+  require_once 'includes/ms_paypal_wps_class.php';
+  
+  $data = array();
+  
+  //Construct the payment class
+  $payment = new ms_paypal_wps_class;
+  $payment->ipnLink = $ipn_link;
+  
+  // Add the variables
+  $data['business'] = $wps_vars['business'];
+  $data['item_name'] = htmlspecialchars($title, ENT_QUOTES);
+  $data['no_shipping'] = $wps_vars['no_shipping'];
+  $data['rm'] = $wps_vars['rm'];
+  $data['return'] = url($wps_vars['return'], array('absolute' => TRUE));
+  $data['cancel_return'] = url($wps_vars['cancel_return'], array('absolute' => TRUE));
+  $data['notify_url'] = url($wps_vars['notify_url'], array('absolute' => TRUE));
+  $data['custom'] = $order->oid;
+  $data['no_note'] = $wps_vars['no_note'];
+  $data['currency_code'] = $wps_vars['currency_code'];
+  $data['lc'] = $wps_vars['lc'];
+  
+  if ($wps_vars['page_style']) {
+    $data['page_style'] = $wps_vars['page_style'];
+  }
+  
+  // Add the modify variables if this is a modification
+  if ($modify) {
+    $data['modify'] = $modify;
+    $data['item_number'] = $order->recurring_schedule['recurring_id'];
+  }
+  
+  switch ($order->order_type) {
+    case 'recurring':
+      $data['cmd'] = '_xclick-subscriptions';
+      $data['a3'] = $order->recurring_schedule['main_amount'];
+      $data['p3'] = $order->recurring_schedule['main_length'];
+      $data['t3'] = $order->recurring_schedule['main_unit'];
+      $data['sra'] = $wps_vars['sra'];
+      $data['src'] = 1;
+      $data['srt'] = $order->recurring_schedule['total_occurrences'];
+      
+      // Add Trial Period Settings
+      if ($order->recurring_schedule['trial_length'] AND $order->recurring_schedule['trial_unit']) {
+        $data['a1'] = $order->recurring_schedule['trial_amount'];
+        $data['p1'] = $order->recurring_schedule['trial_length'];
+        $data['t1'] = $order->recurring_schedule['trial_unit'];
+      }
+      
+    break;
+    
+    case 'cart':
+      $data['cmd'] = '_xclick';
+      $data['amount'] = $order->amount;
+    break;
+    
+    default:
+      watchdog('ms_paypal_wps', 'Something went wrong, using backup method...', array(), WATCHDOG_WARNING);
+      $data['cmd'] = '_xclick';
+      $data['amount'] = $order->amount;
+    break;
+  }
+  
+  if (FALSE) { // This isn't working
+    // Build the link and Redirect
+    header('Location: '. $ipn_link .'?'. http_build_query($data));
+    die();
+  }
+  
+  // Add in the JS
+  $timeout = variable_get('ms_paypal_wps_paypal_page_timeout', 0) * 1000;
+  $js = "
+    window.setTimeout(function() {
+      $('#paypalPaymentForm').submit();
+    }, $timeout);
+  ";
+  drupal_add_js($js, 'inline', 'footer');
+  
+  // Generate some HTML
+  $html = variable_get('ms_paypal_wps_paypal_page_text', "Please wait for a few seconds, your purchase is being processed and you will be redirected to PayPal's secure payment page.
+<br/><br/>
+If you are not automatically redirected to the PayPal payment page within 5 seconds, click below:
+<br/><br/>");
+  
+  foreach ($data as $key => $value) {
+    $payment->add($key, $value);
+  }
+  
+  return $html . $payment->submit(t('Click Here'));
+}
+
+/*
+ * IPN Callback Handler
+ */ 
+function ms_paypal_wps_ipn_handler($ipn_vars) {
+  //Construct the payment class
+  $payment = new ms_paypal_wps_class($ipn_vars);
+  
+  //Validate the ipn
+  if ($payment->verify()) {
+    $ipn = $payment->ipn;
+    return $ipn;
+  }
+}
+
+/*
+ * Initiate a Payment
+ */ 
+function ms_paypal_wps_initiate_payment() {
+  // Stop the caching
+  $GLOBALS['conf']['cache'] = FALSE;
+  
+  // Load the order
+  if (!$order = ms_core_load_session_order()) {
+    // Error
+    return t('There was an error with the checkout');
+  }
+  
+  // Set the order status
+  ms_core_set_order_status($order, 'pending');
+  
+  // Start the Payment
+  $output = ms_paypal_wps_get_button($order, ms_core_get_order_title($order, 64));
+  
+  print theme('page', $output);
+}
+
+/**
+ * Show the default thank-you page for PayPal WPS Transactions
+ */
+function ms_paypal_wps_thankyou_page() {
+  if ($_POST['custom']) { // First try to retrieve the order from the posted variables
+    $order = ms_core_order_load($_POST['custom']);
+  }
+  else { // Backup try to retrieve the oid from the session
+    $order = ms_core_order_load($_SESSION['ms_oid']);
+  }
+  
+  if ($order->oid) {
+    // Wait for the order to be given a uid
+    for ($counter = 1; $counter <= 10; $counter += 1) {
+      $order = ms_core_order_load($order->oid);
+      if ($order->uid) {
+        ms_core_set_order_session($order);
+        drupal_goto('ms/thankyou');
+      }
+      else {
+        sleep(5);
+      }
+    }
+  }
+  else {
+    watchdog('ms_paypal_wps', 'There was an error receiving variables for the Thank You page from PayPal. GET: !get POST !post', 
+      array('!get' => '<pre>'. print_r($_GET, TRUE) .'</pre>', '!post' => '<pre>'. print_r($_POST, TRUE) .'</pre>'), WATCHDOG_ERROR);
+    drupal_goto('ms/thankyou');
+  }
+  
+  // Should never get this far
+  return t('Your payment has been received, thank you.');
+}

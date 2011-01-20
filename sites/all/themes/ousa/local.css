@@ -1,0 +1,13 @@
+body #admin-menu { font-size: 12px; }
+
+#admin-menu {
+  z-index: 2000;
+}
+
+#admin-menu li li {
+  opacity: 1;
+}
+
+.node-type-news .terms-inline {
+  display: none;
+}

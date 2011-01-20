@@ -1,0 +1,8 @@
+;$Id$
+name = ClickBank Integration
+description = Provide Integration with ClickBank
+version = 6.x-1.0
+core = 6.x
+package = MoneyScripts - Gateways
+
+dependencies[] = ms_core

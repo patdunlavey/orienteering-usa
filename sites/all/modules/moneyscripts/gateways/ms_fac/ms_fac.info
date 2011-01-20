@@ -1,0 +1,8 @@
+;$Id$
+name = First Atlantic Commerce
+description = Payment Gateway for First Atlantic Commerce
+version = 6.x-1.2
+core = 6.x
+package = MoneyScripts - Gateways
+
+dependencies[] = ms_core

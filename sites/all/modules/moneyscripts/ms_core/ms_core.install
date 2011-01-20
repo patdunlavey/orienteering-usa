@@ -1,0 +1,1067 @@
+<?php
+// $Id$
+/**
+* @file
+* Licensed under the GNU GPLv2 License
+* Copyright 2010 MoneyScripts.net
+*/
+
+/**
+* Implementation of hook_install().
+*/
+function ms_core_install() {
+  // Create tables.
+  drupal_install_schema('ms_core');
+  
+  // Import payments from MS PayPal API
+  if (db_table_exists('ms_paypal_payments')) {
+    ms_core_import_paypal_payments();
+  }
+  
+  // Populate the Countries
+  ms_core_add_countries();
+}
+
+/**
+* Implementation of hook_uninstall().
+*/
+function ms_core_uninstall() {
+  // Drop tables.
+  drupal_uninstall_schema('ms_core');
+  
+  // Delete related variables all at once.
+  db_query("DELETE FROM {variable} WHERE name LIKE 'ms_core_%%'");
+}
+
+/**
+* Implementation of hook_schema().
+*/
+function ms_core_schema() {
+  $schema['ms_orders'] = array(
+    'description' => 'Used to hold orders',
+    'fields' => array(
+      'oid' => array(
+        'type' => 'serial', 
+        'description' => 'The unique Order ID (primary)', 
+        'not null' => TRUE, 
+        'disp-width' => '11',
+      ),
+      'uid' => array(
+        'type' => 'int', 
+        'description' => 'The User ID', 
+        'disp_width' => '11', 
+        'not null' => TRUE, 
+        'default' => 0,
+      ),
+      'status' => array(
+        'type' => 'varchar', 
+        'description' => 'Status of the Order', 
+        'length' => '32', 
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'order_type' => array(
+        'type' => 'varchar', 
+        'description' => 'Cart, Recurring', 
+        'length' => '32', 
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'gateway' => array(
+        'type' => 'varchar', 
+        'description' => 'Which Gateway was used', 
+        'length' => '64', 
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'amount' => array(
+        'type' => 'numeric', 
+        'description' => 'The amount to be paid', 
+        'not null' => TRUE, 
+        'default' => 0,
+        'precision' => '10', 
+        'scale' => '2',
+      ),
+      'currency' => array(
+        'type' => 'varchar', 
+        'description' => 'The Currency Code used for the order', 
+        'length' => '32', 
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'secured' => array(
+        'type' => 'int', 
+        'description' => 'Is the order secured?', 
+        'disp_width' => '11', 
+        'not null' => TRUE, 
+        'default' => 0,
+      ),
+      'recurring_schedule' => array(
+        'type' => 'text', 
+        'description' => 'Serialized Array of the recurring schedule', 
+        'serialize' => TRUE,
+      ),
+      'full_name' => array(
+        'type' => 'varchar', 
+        'description' => 'Full Name of the Purchaser', 
+        'length' => '64', 
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'shipping_address' => array(
+        'type' => 'text', 
+        'description' => 'The shipping address', 
+        'serialize' => TRUE,
+      ),
+      'billing_address' => array(
+        'type' => 'text', 
+        'description' => 'The billing address', 
+        'serialize' => TRUE,
+      ),
+      'data' => array(
+        'type' => 'text', 
+        'description' => 'The data that is stored with the order', 
+        'serialize' => TRUE,
+      ),
+      'created' => array(
+        'type' => 'int', 
+        'description' => 'When the order was created', 
+        'disp_width' => '11', 
+        'not null' => TRUE, 
+        'default' => 0,
+      ),
+      'modified' => array(
+        'type' => 'int', 
+        'description' => 'When the order was modified', 
+        'disp_width' => '11', 
+        'not null' => TRUE, 
+        'default' => 0,
+      ),
+    ),
+    'primary key' => array('oid'),
+  );
+  
+  $schema['ms_recurring_schedules'] = array(
+    'description' => 'Used to hold recurring schedules',
+    'fields' => array(
+      'id' => array(
+        'type' => 'serial', 
+        'description' => 'The unique ID (primary)', 
+        'not null' => TRUE, 
+        'disp-width' => '11'
+      ),
+      'oid' => array(
+        'description' => t('The order ID.'), 
+        'type' => 'int', 
+        'unsigned' => TRUE, 
+        'not null' => TRUE, 
+        'default' => 0,
+      ),
+      'status' => array(
+        'type' => 'varchar', 
+        'description' => 'Status of the Recurring Schedule', 
+        'length' => '32', 
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'module' => array(
+        'type' => 'varchar', 
+        'description' => 'Which Module was used', 
+        'length' => '64', 
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'gateway' => array(
+        'type' => 'varchar', 
+        'description' => 'Which Gateway was used', 
+        'length' => '64', 
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'main_amount' => array(
+        'type' => 'numeric', 
+        'description' => 'The Regular Fee', 
+        'precision' => '10', 
+        'scale' => '2', 
+        'not null' => TRUE
+      ),
+      'main_length' => array(
+        'type' => 'int', 
+        'description' => 'The Regular Period Length', 
+        'not null' => TRUE, 
+        'disp-width' => '11'
+      ),
+      'main_unit' => array(
+        'type' => 'varchar', 
+        'description' => 'The Regular Period Unit', 
+        'length' => '128'
+      ),
+      'trial_amount' => array(
+        'type' => 'numeric', 
+        'description' => 'The Trial Fee', 
+        'precision' => '10', 
+        'scale' => '2', 
+        'not null' => TRUE
+      ),
+      'trial_length' => array(
+        'type' => 'int', 
+        'description' => 'The Trial Period Length', 
+        'not null' => TRUE, 
+        'disp-width' => '11'
+      ),
+      'trial_unit' => array(
+        'type' => 'varchar', 
+        'description' => 'The Trial Period Unit', 
+        'length' => '128'
+      ),
+      'total_occurrences' => array(
+        'type' => 'int', 
+        'description' => 'The Number of Payments', 
+        'not null' => TRUE, 
+        'disp-width' => '11'
+      ),
+      'next_payment' => array(
+        'type' => 'int', 
+        'description' => 'When will the next payment be processed', 
+        'disp_width' => '11', 
+        'not null' => TRUE, 
+        'default' => 0,
+      ),
+      'current_payments' => array(
+        'type' => 'int', 
+        'description' => 'How many payments have been completed', 
+        'disp_width' => '11', 
+        'not null' => TRUE, 
+        'default' => 0,
+      ),
+      'created' => array(
+        'type' => 'int', 
+        'description' => 'When the order was created', 
+        'disp_width' => '11', 
+        'not null' => TRUE, 
+        'default' => 0,
+      ),
+      'expiration' => array(
+        'type' => 'int', 
+        'description' => 'When the recurring schedule will expire', 
+        'disp_width' => '11', 
+        'not null' => TRUE, 
+        'default' => 0,
+      ),
+      'modified' => array(
+        'type' => 'int', 
+        'description' => 'When the order was modified', 
+        'disp_width' => '11', 
+        'not null' => TRUE, 
+        'default' => 0,
+      ),
+      'failed_payments' => array(
+        'description' => t('The number of failed payments in a row'), 
+        'type' => 'int', 
+        'unsigned' => TRUE, 
+        'not null' => TRUE, 
+        'default' => 0,
+      ),
+    ),
+    'primary key' => array('id'),
+  );
+  
+  $schema['ms_order_products'] = array(
+    'description' => t('The items that have been ordered.'),
+    'fields' => array(
+      'order_product_id' => array(
+        'description' => t('The unique product ID.'), 
+        'type' => 'serial', 
+        'unsigned' => TRUE, 
+        'not null' => TRUE,
+      ),
+      'oid' => array(
+        'description' => t('The order ID.'), 
+        'type' => 'int', 
+        'unsigned' => TRUE, 
+        'not null' => TRUE, 
+        'default' => 0,
+      ),
+      'type' => array(
+        'description' => t('The Product Type (recurring/cart).'), 
+        'type' => 'varchar', 
+        'length' => 32, 
+        'not null' => TRUE, 
+        'default' => '',
+      ),
+      'id' => array(
+        'description' => t('The item ID in the respective module.'), 
+        'type' => 'int', 
+        'unsigned' => TRUE, 
+        'not null' => TRUE, 
+        'default' => 0,
+      ),
+      'name' => array(
+        'description' => t('The product title.'), 
+        'type' => 'varchar', 
+        'length' => 128, 
+        'not null' => TRUE, 
+        'default' => '',
+      ),
+      'module' => array(
+        'description' => t('The product module.'), 
+        'type' => 'varchar', 
+        'length' => 128, 
+        'not null' => TRUE, 
+        'default' => '',
+      ),
+      'qty' => array(
+        'description' => t('The number of the same product ordered.'), 
+        'type' => 'int', 
+        'size' => 'small', 
+        'unsigned' => TRUE, 
+        'not null' => TRUE, 
+        'default' => 0,
+      ),
+      'amount' => array(
+        'description' => t('The amount of money for the product.'), 
+        'type' => 'numeric', 
+        'precision' => 16, 
+        'scale' => 5, 
+        'not null' => TRUE, 
+        'default' => 0.0,
+      ),
+      'recurring_schedule' => array(
+        'type' => 'text', 
+        'description' => 'Serialized Array of the recurring schedule', 
+        'serialize' => TRUE,
+      ),
+      'data' => array(
+        'description' => t('Serialized array of extra data.'), 
+        'type' => 'text', 
+        'serialize' => TRUE
+      ),
+    ),
+    'indexes' => array(
+      'oid' => array('oid'),
+    ),
+    'primary key' => array('order_product_id'),
+  );
+  
+  $schema['ms_order_adjustments'] = array(
+    'description' => t('Order adjustments'),
+    'fields' => array(
+      'adjustment_id' => array(
+        'description' => t('The adjustment ID.'), 
+        'type' => 'serial', 
+        'unsigned' => TRUE, 
+        'not null' => TRUE,
+      ),
+      'oid' => array(
+        'description' => t('The order ID.'), 
+        'type' => 'int', 
+        'unsigned' => TRUE, 
+        'not null' => TRUE, 
+        'default' => 0,
+      ),
+      'id' => array(
+        'description' => t('The identifier string of the adjustment.'), 
+        'type' => 'varchar', 
+        'length' => 64, 
+        'not null' => TRUE, 
+        'default' => '',
+      ),
+      'type' => array(
+        'description' => t('The Adjustment Type (percentage/fixed).'), 
+        'type' => 'varchar', 
+        'length' => 32, 
+        'not null' => TRUE, 
+        'default' => '',
+      ),
+      'display' => array(
+        'description' => t('The label of the adjustment.'), 
+        'type' => 'varchar', 
+        'length' => 128, 
+        'not null' => TRUE, 
+        'default' => '',
+      ),
+      'value' => array(
+        'description' => t('The value of the adjustment.'), 
+        'type' => 'numeric', 
+        'precision' => 16, 
+        'scale' => 5, 
+        'not null' => TRUE, 
+        'default' => 0.0,
+      ),
+      'weight' => array(
+        'description' => t('How early to process the adjustment'), 
+        'type' => 'int', 
+        'size' => 'small', 
+        'not null' => TRUE, 
+        'default' => 0,
+      ),
+      'data' => array(
+        'description' => t('Serialized array of extra data.'), 
+        'type' => 'text', 
+        'serialize' => TRUE
+      ),
+    ),
+    'indexes' => array(
+      'oid' => array('oid'),
+    ),
+    'primary key' => array('adjustment_id'),
+  );
+  
+  $schema['ms_cart_products'] = array(
+    'fields' => array(
+      'cart_product_id' => array(
+        'description' => 'Unique identifier for cart product.', 
+        'type' => 'serial', 
+        'unsigned' => TRUE, 
+        'not null' => TRUE,
+      ),
+      'cart_id' => array(
+        'type' => 'varchar', 
+        'length' => 255, 
+        'not null' => TRUE, 
+        'default' => '0',
+      ),
+      'type' => array(
+        'description' => t('The Product Type (recurring/cart).'), 
+        'type' => 'varchar', 
+        'length' => 32, 
+        'not null' => TRUE, 
+        'default' => '',
+      ),
+      'id' => array(
+        'description' => t('The item ID in the respective module.'), 
+        'type' => 'int', 
+        'unsigned' => TRUE, 
+        'not null' => TRUE, 
+        'default' => 0,
+      ),
+      'name' => array(
+        'description' => t('The product title.'), 
+        'type' => 'varchar', 
+        'length' => 128, 
+        'not null' => TRUE, 
+        'default' => '',
+      ),
+      'module' => array(
+        'description' => t('The product module.'), 
+        'type' => 'varchar', 
+        'length' => 128, 
+        'not null' => TRUE, 
+        'default' => '',
+      ),
+      'qty' => array(
+        'description' => t('The number of the same product ordered.'), 
+        'type' => 'int', 
+        'size' => 'small', 
+        'unsigned' => TRUE, 
+        'not null' => TRUE, 
+        'default' => 0,
+      ),
+      'amount' => array(
+        'description' => t('The amount of money for the product.'), 
+        'type' => 'numeric', 
+        'precision' => 16, 
+        'scale' => 5, 
+        'not null' => TRUE, 
+        'default' => 0.0,
+      ),
+      'recurring_schedule' => array(
+        'type' => 'text', 
+        'description' => 'Serialized Array of the recurring schedule', 
+        'serialize' => TRUE,
+      ),
+      'changed' => array(
+        'type' => 'int', 
+        'not null' => TRUE, 
+        'default' => 0,
+      ),
+      'data' => array(
+        'type' => 'text', 
+        'serialize' => TRUE,
+      ),
+    ),
+    'indexes' => array(
+      'cart_id' => array('cart_id')
+    ), 
+    'primary key' => array('cart_product_id'),
+  );
+  
+  $schema['ms_cart_adjustments'] = array(
+    'description' => t('Cart adjustments'),
+    'fields' => array(
+      'adjustment_id' => array(
+        'description' => t('The adjustment ID.'), 
+        'type' => 'serial', 
+        'unsigned' => TRUE, 
+        'not null' => TRUE,
+      ),
+      'cart_id' => array(
+        'type' => 'varchar', 
+        'length' => 255, 
+        'not null' => TRUE, 
+        'default' => '0',
+      ),
+      'id' => array(
+        'description' => t('The identifier string of the adjustment.'), 
+        'type' => 'varchar', 
+        'length' => 64, 
+        'not null' => TRUE, 
+        'default' => '',
+      ),
+      'type' => array(
+        'description' => t('The Adjustment Type (percentage/fixed).'), 
+        'type' => 'varchar', 
+        'length' => 32, 
+        'not null' => TRUE, 
+        'default' => '',
+      ),
+      'display' => array(
+        'description' => t('The label of the adjustment.'), 
+        'type' => 'varchar', 
+        'length' => 128, 
+        'not null' => TRUE, 
+        'default' => '',
+      ),
+      'value' => array(
+        'description' => t('The value of the adjustment.'), 
+        'type' => 'numeric', 
+        'precision' => 16, 
+        'scale' => 5, 
+        'not null' => TRUE, 
+        'default' => 0.0,
+      ),
+      'weight' => array(
+        'description' => t('How early to process the adjustment'), 
+        'type' => 'int', 
+        'size' => 'small', 
+        'not null' => TRUE, 
+        'default' => 0,
+      ),
+      'data' => array(
+        'description' => t('Serialized array of extra data.'), 
+        'type' => 'text', 
+        'serialize' => TRUE,
+      ),
+    ),
+    'indexes' => array(
+      'cart_id' => array('cart_id'),
+    ),
+    'primary key' => array('adjustment_id'),
+  );
+  
+  $schema['ms_payments'] = array(
+    'description' => 'Used to hold payments',
+    'fields' => array(
+      'pid' => array(
+        'type' => 'serial', 
+        'description' => 'The unique Payment ID (primary)', 
+        'not null' => TRUE, 
+        'disp-width' => '11',
+      ),
+      'oid' => array(
+        'type' => 'int', 
+        'description' => 'The Order ID', 
+        'disp_width' => '11', 
+        'not null' => TRUE, 
+        'default' => 0,
+      ),
+      'type' => array(
+        'type' => 'varchar', 
+        'description' => 'The Type of Payment', 
+        'length' => '32', 
+        'not null' => TRUE,
+      ),
+      'transaction' => array(
+        'type' => 'varchar', 
+        'description' => 'Transaction ID', 
+        'length' => '128', 
+        'not null' => TRUE,
+      ),
+      'recurring_id' => array(
+        'type' => 'varchar', 
+        'description' => 'Recurring ID', 
+        'length' => '128', 
+      ),
+      'gateway' => array(
+        'type' => 'varchar', 
+        'description' => 'Which Gateway was used', 
+        'length' => '64', 
+        'not null' => TRUE,
+      ),
+      'amount' => array(
+        'type' => 'numeric', 
+        'description' => 'The amount that was paid', 
+        'not null' => TRUE, 
+        'precision' => '10', 
+        'scale' => '2',
+      ),
+      'currency' => array(
+        'type' => 'varchar', 
+        'description' => 'The Currency Code used for the payment', 
+        'length' => '32', 
+        'not null' => TRUE,
+      ),
+      'data' => array(
+        'type' => 'text', 
+        'description' => 'The data that is stored with the payment from the gateway', 
+        'serialize' => TRUE,
+      ),
+      'recurring_schedule' => array(
+        'type' => 'text', 
+        'description' => 'Serialized Array of the recurring schedule', 
+        'serialize' => TRUE,
+      ),
+      'created' => array(
+        'type' => 'int', 
+        'description' => 'When the payment was created', 
+        'disp_width' => '11', 
+        'not null' => TRUE, 
+        'default' => 0,
+      ),
+      'modified' => array(
+        'type' => 'int', 
+        'description' => 'When the payment was modified', 
+        'disp_width' => '11', 
+        'not null' => TRUE, 
+        'default' => 0,
+      ),
+    ),
+    'primary key' => array('pid'),
+  );
+  
+  $schema['ms_core_countries'] = array(
+    'description' => 'Used to hold countries',
+    'fields' => array(
+      'iso' => array(
+        'type' => 'char', 
+        'description' => 'The ISO code for the country', 
+        'not null' => TRUE, 
+        'length' => '2',
+      ),
+      'name' => array(
+        'type' => 'varchar', 
+        'description' => 'The name of the country', 
+        'length' => '80', 
+        'not null' => TRUE,
+      ),
+      'printable_name' => array(
+        'type' => 'varchar', 
+        'description' => 'The printable name of the country', 
+        'length' => '80', 
+        'not null' => TRUE,
+      ),
+      'iso3' => array(
+        'type' => 'char', 
+        'description' => 'The 3 Letter ISO Code for the Country', 
+        'length' => '3',
+      ),
+      'numcode' => array(
+        'type' => 'int', 
+        'description' => 'The Number Code for the Country', 
+        'disp_width' => '11',
+      ),
+    ),
+    'primary key' => array('iso'),
+  );
+  
+  return $schema;
+}
+
+function ms_core_add_countries() {
+  // Temporary variable, used to store current query
+  $templine = '';
+  // Read in entire file
+  $lines = file(drupal_get_path('module', 'ms_core') .'/ms_core_insert_countries.sql');
+  // Loop through each line
+  foreach ($lines as $line_num => $line) {
+    // Only continue if it's not a comment
+    if (substr($line, 0, 2) != '--' && $line != '') {
+      // Add this line to the current segment
+      $templine .= $line;
+      // If it has a semicolon at the end, it's the end of the query
+      if (substr(trim($line), -1, 1) == ';') {
+        // Perform the query
+        db_query($templine) or print('Error performing query \'<b>'. $templine .'</b>\': '. mysql_error() .'<br /><br />');
+        // Reset temp variable to empty
+        $templine = '';
+      }
+    }
+  }
+}
+
+// ======================================
+// Import:
+// ======================================
+function ms_core_import_paypal_payments() {
+  
+  // Import some variables
+  variable_set('ms_core_auto_login', str_replace($old_tokens, $new_tokens, variable_get('ms_membership_auto_login', '')));
+  variable_set('ms_core_debug_mode', str_replace($old_tokens, $new_tokens, variable_get('ms_paypal_api_debug_mode', '')));
+  
+  // Go through all of the payments
+  $result = db_query("SELECT * FROM {ms_paypal_api_data} ORDER BY id ASC");
+  $count = 0;
+  
+  while ($record = db_fetch_object($result)) {
+    $order = new stdClass();
+    
+    // Set the Order Variables
+    $order->uid = 0;
+    $order->status = 'checkout';
+    $order->order_type = 'cart';
+    $order->gateway = 'ms_paypal_wps';
+    $order->amount = 0;
+    $order->currency = variable_get('ms_core_default_currency', 'USD');
+    $order->recurring_schedule = array();
+    $order->data = array();
+    $order->created = time();
+    $order->modified = time();
+    $order->secured = 1;
+    $order->oid = $record->id;
+    
+    // Insert into Database
+    db_query("INSERT INTO {ms_orders} (oid, uid, status, order_type, 
+      gateway, amount, currency, secured, recurring_schedule, data, created, modified) VALUES 
+      (%d, %d, '%s', '%s', '%s', '%s', '%s', %d, '%s', '%s', %d, %d)",
+      $order->oid, $order->uid, $order->status, $order->order_type, $order->gateway, 
+      $order->amount, $order->currency, $order->secured, serialize($order->recurring_schedule), 
+      serialize($order->data), $order->created, $order->modified);
+    
+    $count += 1;
+  }
+  
+  drupal_set_message("Imported $count records from MS PayPal API");
+}
+
+// ======================================
+// Updates:
+// ======================================
+// 1.1
+// Update Payments to have the correct date
+function ms_core_update_6101() {
+  $ret = array();
+  
+  $result = db_query("SELECT * FROM {ms_payments}");
+  $count = 0;
+  
+  while ($payment = db_fetch_object($result)) {
+    $payment->data = unserialize($payment->data);
+    if ($payment->data->pid) {
+      $old_payment = db_fetch_object(db_query("SELECT date FROM {ms_paypal_payments} WHERE pid = %d", $payment->data->pid));
+      $created = strtotime($old_payment->date);
+      
+      // Update the payment with the new date
+      db_query("UPDATE {ms_payments} SET created = %d, modified = %d WHERE pid = %d", $created, $created, $payment->pid);
+      
+      $count += 1;
+    }
+  }
+  
+  if ($count) {
+    drupal_set_message(t("Successfully updated %count payments.", array('%count' => $count)));
+  }
+  
+  return $ret;
+}
+
+// 1.7
+// Update Order Totals and Generate Payments if needed
+function ms_core_update_6102() {
+  $ret = array();
+  
+  // Add new fields to the database
+  if (!db_column_exists('ms_payments', 'recurring_id')) {
+    db_add_field($ret, 'ms_payments', 'recurring_id', array('type' => 'varchar', 'description' => 'Recurring ID', 'length' => '128'));
+  }
+  
+  $result = db_query("SELECT oid FROM {ms_orders}");
+  $count = 0;
+  
+  while ($oid = db_fetch_object($result)) {
+    $order = ms_core_order_load($oid->oid);
+    
+    if ($order->order_type == 'recurring' AND count($order->payments) == 0) {
+      if ($order->status == 'active') {
+        // Generate the signup payment
+        $payment = new stdClass();
+        
+        $payment->oid = $order->oid;
+        $payment->type = 'rec_signup';
+        $payment->transaction = 0;
+        $payment->full_name = $order->full_name;
+        $payment->gateway = 'ms_paypal_wps';
+        $payment->amount = 0;
+        $payment->currency = $order->currency;
+        $payment->data = array('generated' => TRUE);
+        $payment->recurring_schedule = $order->recurring_schedule;
+        $payment->created = $order->created;
+        $payment->modified = $order->created;
+        ms_core_enter_payment($payment, FALSE, FALSE);
+        
+        $count += 1;
+      }
+      if ($order->status == 'cancelled' OR $order->status == 'completed') {
+        // Generate the signup payment
+        $payment = new stdClass();
+        
+        $payment->oid = $order->oid;
+        $payment->type = 'rec_signup';
+        $payment->transaction = 0;
+        $payment->full_name = $order->full_name;
+        $payment->gateway = 'ms_paypal_wps';
+        $payment->amount = 0;
+        $payment->currency = $order->currency;
+        $payment->data = array('generated' => TRUE);
+        $payment->recurring_schedule = $order->recurring_schedule;
+        $payment->created = $order->created;
+        $payment->modified = $order->created;
+        ms_core_enter_payment($payment, FALSE, FALSE);
+        
+        // Generate the cancel payment
+        $payment = new stdClass();
+        
+        $payment->oid = $order->oid;
+        $payment->type = 'rec_cancel';
+        $payment->transaction = 0;
+        $payment->full_name = $order->full_name;
+        $payment->gateway = 'ms_paypal_wps';
+        $payment->amount = 0;
+        $payment->currency = $order->currency;
+        $payment->data = array('generated' => TRUE);
+        $payment->recurring_schedule = $order->recurring_schedule;
+        $payment->created = $order->modified;
+        $payment->modified = $order->modified;
+        ms_core_enter_payment($payment, FALSE, FALSE);
+        
+        $count += 2;
+      }
+    }
+    
+    // Save the order total
+    ms_core_order_save($order);
+  }
+  
+  if ($count) {
+    drupal_set_message(t("Successfully generated %count payments.", array('%count' => $count)));
+  }
+  
+  return $ret;
+}
+
+// 1.8
+// Add a field for recurring_id to the database
+function ms_core_update_6103() {
+  $ret = array();
+  
+  // Add new fields to the database
+  if (!db_column_exists('ms_payments', 'recurring_id')) {
+    db_add_field($ret, 'ms_payments', 'recurring_id', array('type' => 'varchar', 'description' => 'Recurring ID', 'length' => '128'));
+  }
+  
+  $result = db_query("SELECT * FROM {ms_payments} WHERE gateway='%s' AND (type='%s' OR type='%s' OR type='%s' OR type='%s')", 
+    'ms_paypal_wps', 'rec_payment', 'rec_signup', 'rec_cancel', 'rec_eot');
+  
+  $count = 0;
+  
+  while ($payment = db_fetch_object($result)) {
+    $data = (object) unserialize($payment->data);
+    $count += 1;
+    
+    // Update the payment with the recurring_id
+    db_query("UPDATE {ms_payments} SET recurring_id = '%s' WHERE pid = %d", $data->subscr_id, $payment->pid);
+  }
+  
+  if ($count) {
+    drupal_set_message(t("Successfully added recurring id to %count payments.", array('%count' => $count)));
+  }
+  
+  return $ret;
+}
+
+// 1.9
+// Add a field for recurring_id to the database
+function ms_core_update_6104() {
+  $ret = array();
+  
+  // Add new recurring schedules database table
+  if (!db_table_exists('ms_recurring_schedules')) {
+    $schema['ms_recurring_schedules'] = array(
+      'description' => 'Used to hold recurring schedules',
+      'fields' => array(
+        'id' => array(
+          'type' => 'serial', 
+          'description' => 'The unique ID (primary)', 
+          'not null' => TRUE, 
+          'disp-width' => '11'
+        ),
+        'oid' => array(
+          'description' => t('The order ID.'), 
+          'type' => 'int', 
+          'unsigned' => TRUE, 
+          'not null' => TRUE, 
+          'default' => 0,
+        ),
+        'status' => array(
+          'type' => 'varchar', 
+          'description' => 'Status of the Recurring Schedule', 
+          'length' => '32', 
+          'not null' => TRUE,
+          'default' => '',
+        ),
+        'gateway' => array(
+          'type' => 'varchar', 
+          'description' => 'Which Gateway was used', 
+          'length' => '64', 
+          'not null' => TRUE,
+          'default' => '',
+        ),
+        'module' => array(
+          'type' => 'varchar', 
+          'description' => 'Which Module was used', 
+          'length' => '64', 
+          'not null' => TRUE,
+          'default' => '',
+        ),
+        'main_amount' => array(
+          'type' => 'numeric', 
+          'description' => 'The Regular Fee', 
+          'precision' => '10', 
+          'scale' => '2', 
+          'not null' => TRUE
+        ),
+        'main_length' => array(
+          'type' => 'int', 
+          'description' => 'The Regular Period Length', 
+          'not null' => TRUE, 
+          'disp-width' => '11'
+        ),
+        'main_unit' => array(
+          'type' => 'varchar', 
+          'description' => 'The Regular Period Unit', 
+          'length' => '128'
+        ),
+        'trial_amount' => array(
+          'type' => 'numeric', 
+          'description' => 'The Trial Fee', 
+          'precision' => '10', 
+          'scale' => '2', 
+          'not null' => TRUE
+        ),
+        'trial_length' => array(
+          'type' => 'int', 
+          'description' => 'The Trial Period Length', 
+          'not null' => TRUE, 
+          'disp-width' => '11'
+        ),
+        'trial_unit' => array(
+          'type' => 'varchar', 
+          'description' => 'The Trial Period Unit', 
+          'length' => '128'
+        ),
+        'total_occurrences' => array(
+          'type' => 'int', 
+          'description' => 'The Number of Payments', 
+          'not null' => TRUE, 
+          'disp-width' => '11'
+        ),
+        'next_payment' => array(
+          'type' => 'int', 
+          'description' => 'When will the next payment be processed', 
+          'disp_width' => '11', 
+          'not null' => TRUE, 
+          'default' => 0,
+        ),
+        'current_payments' => array(
+          'type' => 'int', 
+          'description' => 'How many payments have been completed', 
+          'disp_width' => '11', 
+          'not null' => TRUE, 
+          'default' => 0,
+        ),
+        'created' => array(
+          'type' => 'int', 
+          'description' => 'When the order was created', 
+          'disp_width' => '11', 
+          'not null' => TRUE, 
+          'default' => 0,
+        ),
+        'expiration' => array(
+          'type' => 'int', 
+          'description' => 'When the recurring schedule will expire', 
+          'disp_width' => '11', 
+          'not null' => TRUE, 
+          'default' => 0,
+        ),
+        'modified' => array(
+          'type' => 'int', 
+          'description' => 'When the order was modified', 
+          'disp_width' => '11', 
+          'not null' => TRUE, 
+          'default' => 0,
+        ),
+      ),
+      'primary key' => array('id'),
+    );
+    
+    db_create_table($ret, 'ms_recurring_schedules', $schema['ms_recurring_schedules']);
+  }
+  
+  $result = db_query("SELECT oid FROM {ms_orders} WHERE order_type='%s' AND status='%s'", 'recurring', 'active');
+  
+  $count = 0;
+  
+  while ($order = db_fetch_object($result)) {
+    $count += 1;
+    $order = ms_core_order_load($order->oid);
+    
+    if (is_array($order->payments) AND count($order->payments)) {
+      // Create a new recurring schedule record
+      ms_core_create_recurring_schedule($order->oid, $order->gateway, ms_core_get_order_module($order), $order->recurring_schedule, $order->created);
+      
+      // Increment the recurring schedule payments
+      foreach ($order->payments as $payment) {
+        if ($payment->type == 'rec_payment') {
+          ms_core_increment_recurring_schedule($order->oid, $payment->created);
+        }
+      }
+    }
+  }
+  
+  if ($count) {
+    drupal_set_message(t("Successfully added recurring schedules for %count orders.", array('%count' => $count)));
+  }
+  
+  return $ret;
+}
+
+// 1.12
+// Add a field for failed_payments to the database
+function ms_core_update_6105() {
+  $ret = array();
+  
+  // Add new fields to the database
+  if (!db_column_exists('ms_recurring_schedules', 'failed_payments')) {
+    db_add_field($ret, 'ms_recurring_schedules', 'failed_payments', array(
+        'description' => t('The number of failed payments in a row'), 
+        'type' => 'int', 
+        'unsigned' => TRUE, 
+        'not null' => TRUE, 
+        'default' => 0,
+      ));
+  }
+  
+  return $ret;
+}
+
+// 1.13
+// Fix some order statuses
+function ms_core_update_6106() {
+  $ret = array();
+  
+  $result = db_query("UPDATE {ms_orders} SET status = '%s' WHERE order_type = '%s' AND status = '%s'",
+    'active', 'recurring', 'Completed');
+  $result = db_query("UPDATE {ms_orders} SET status = '%s' WHERE order_type = '%s' AND status = '%s'",
+    'completed', 'cart', 'Completed');
+  
+  return $ret;
+}

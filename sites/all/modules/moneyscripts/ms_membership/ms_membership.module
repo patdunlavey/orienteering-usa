@@ -1,0 +1,3968 @@
+<?php
+// $Id$
+/**
+* @file
+* A fully fledged Membership system for Drupal
+* Licensed under the GNU GPLv2 License
+*/
+
+/**
+* Display help and module information
+*/
+function ms_membership_help($path, $arg) {
+  $output = '';
+  switch ($path) {
+    case "admin/help#ms_membership":
+      $output = '<p>'.  t("Support for a fully-fledged Paid Membership System.") .'</p>';
+      break;
+  }
+  return $output;
+}
+
+/**
+* Implementation of hook_cron().
+*/
+function ms_membership_cron() {
+  // Clear the cache for license and updates
+  cache_clear_all('ms_membership_updates', 'cache');
+  cache_clear_all('ms_membership_requirements', 'cache');
+  
+  // Check for Memberships that are expiring soon and send the expiring soon email
+  $result = db_query("SELECT * FROM {ms_memberships} WHERE (status=%d) OR (status=%d)", 1, 3);
+  while ($membership = db_fetch_object($result)) {
+    if (!$membership->expiration) { // Skip Memberships with no expiration
+      continue;
+    }
+    $m_plan = ms_membership_load_membership_plan($membership->mpid);
+    $temp_time = strtotime("+". $m_plan->expiring_mail_days ." days");
+    if (($m_plan->expiring_mail_days) AND ($membership->expiration < $temp_time)) {
+      $account = user_load($membership->uid);
+      
+      // Change the Membership Status to 'Expiring Soon'
+      ms_membership_change_membership_status($membership->mid, 4);
+      
+      $payment_vars = array(
+        'mid' => $membership->mid,
+      );
+      
+      // Send Expiring Soon Email
+      drupal_mail('ms_membership', 'expiring', $account->mail, user_preferred_language($account), $payment_vars);
+    }
+  }
+  
+  // Check for Expired Memberships and disable them
+  $result = db_query("SELECT * FROM {ms_memberships} WHERE status<>%d AND expiration<%d", 0, time());
+  while ($membership = db_fetch_object($result)) {
+    if (!$membership->expiration) { // Skip Memberships with no expiration
+      continue;
+    }
+    $account = user_load($membership->uid);
+    $m_plan = ms_membership_load_membership_plan($membership->mpid);
+    if ($account->uid) {
+      // Add and remove the appropriate roles at expiration
+      ms_membership_change_roles($account->uid, $m_plan->expire_grant_roles, $m_plan->expire_remove_roles);
+    }
+    
+    // Set the Membership to Inactive
+    ms_membership_change_membership_status($membership->mid, 0);
+    
+    $payment_vars = array(
+      'mid' => $membership->mid,
+    );
+    
+    // Send Expiration Email
+    drupal_mail('ms_membership', 'eot', $account->mail, user_preferred_language($account), $payment_vars);
+    
+    // Invoke hook_ms_membership_expiring to let other modules act on a membership expiring
+    module_invoke_all('ms_membership_expiring', $account, $membership, $m_plan);
+    
+    if (variable_get('ms_core_debug_mode', FALSE)) {
+      watchdog('ms_membership', 'Disabled Expired Membership during cron run for user: %username. %roles',
+        array('%roles' => ms_membership_list_roles($m_plan), '%username' => $account->name));
+    }
+  }
+}
+
+/**
+ * Implementation of hook_perm().
+ */
+function ms_membership_perm() {
+  return array(
+    'administer membership plans', 
+    'administer ms memberships', 
+    'purchase membership', 
+    'modify own membership', 
+    'renew own membership',
+    );
+}
+
+/**
+ * Implementation of hook_menu
+ */
+function ms_membership_menu() {
+  $items = array();
+  $items['admin/build/ms_membership'] = array(
+    'title' => 'Membership Plans',
+    'page callback' => 'ms_membership_list_plans',
+    'access arguments' => array('administer membership plans'),
+    'description' => 'Create and Edit Membership Plans',
+    'type' => MENU_NORMAL_ITEM,
+  );
+  $items['admin/build/ms_membership/list'] = array(
+    'title' => 'List Membership Plans',
+    'page callback' => 'ms_membership_list_plans',
+    'access arguments' => array('administer membership plans'),
+    'type' => MENU_DEFAULT_LOCAL_TASK,
+    'weight' => '-1'
+  );
+  $items['admin/build/ms_membership/add'] = array(
+    'title' => 'Add Membership Plan',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('ms_membership_plan_form', 'add'),
+    'access arguments' => array('administer membership plans'),
+    'type' => MENU_LOCAL_TASK,
+  );
+  $items['admin/build/ms_membership/edit/%'] = array(
+    'title' => 'Edit Membership Plan',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('ms_membership_plan_form', 'edit', 4),
+    'access arguments' => array('administer membership plans'),
+    'type' => MENU_CALLBACK,
+  );
+  $items['admin/build/ms_membership/clone/%'] = array(
+    'title' => 'Clone Membership Plan',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('ms_membership_plan_form', 'clone', 4),
+    'access arguments' => array('administer membership plans'),
+    'type' => MENU_CALLBACK,
+  );
+  $items['admin/build/ms_membership/delete/%'] = array(
+    'title' => 'Delete Membership Plan',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('ms_membership_delete_membership_plan_confirm', 4),
+    'access arguments' => array('administer membership plans'),
+    'type' => MENU_CALLBACK,
+  );
+  $items['membership/purchase/%'] = array(
+    'title' => 'Purchase Membership',
+    'page callback' => 'ms_membership_purchase_membership',
+    'page arguments' => array(2),
+    'access arguments' => array('purchase membership'),
+    'type' => MENU_CALLBACK,
+  );
+  $items['membership/change/%'] = array(
+    'title' => 'Change Membership',
+    'page callback' => 'ms_membership_change_membership_page',
+    'page arguments' => array(2),
+    'access arguments' => array('modify own membership'),
+    'type' => MENU_CALLBACK,
+  );
+  $items['admin/moneyscripts/ms_membership'] = array(
+    'title' => 'Membership Suite Settings',
+    'description' => 'Set the various MoneyScripts Membership Suite Settings here',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('ms_membership_admin'),
+    'access arguments' => array('administer membership plans'),
+    'type' => MENU_NORMAL_ITEM,
+   );
+  $items['admin/moneyscripts/ms_membership/lm_paypal'] = array(
+    'title' => 'Migrate LM PayPal',
+    'description' => 'Migrate records from LM PayPal',
+    'page callback' => 'ms_membership_migrate_lm_paypal',
+    'access callback' => 'ms_membership_lm_paypal_access',
+    'type' => MENU_NORMAL_ITEM,
+   );
+  $items['admin/user/ms_memberships'] = array(
+    'title' => 'Memberships',
+    'page callback' => 'ms_membership_show_memberships',
+    'access arguments' => array('administer ms memberships'),
+    'type' => MENU_NORMAL_ITEM,
+  );
+  $items['admin/user/ms_memberships/list'] = array(
+    'title' => 'List Memberships',
+    'page callback' => 'ms_membership_show_memberships',
+    'access arguments' => array('administer ms memberships'),
+    'type' => MENU_DEFAULT_LOCAL_TASK,
+    'weight' => '-1'
+  );
+  $items['admin/user/ms_memberships/add'] = array(
+    'title' => 'Add Membership',
+    'page callback' => 'ms_membership_add_membership_page',
+    'access arguments' => array('administer ms memberships'),
+    'type' => MENU_LOCAL_TASK,
+  );
+  $items['admin/user/ms_memberships/edit/%'] = array(
+    'title' => 'Edit Membership',
+    'page callback' => 'ms_membership_edit_membership_page',
+    'page arguments' => array(4),
+    'access arguments' => array('administer ms memberships'),
+    'type' => MENU_CALLBACK,
+  );
+  $items['admin/user/ms_memberships/delete/%'] = array(
+    'title' => 'Delete Membership',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('ms_membership_delete_membership_confirm', 4),
+    'access arguments' => array('administer ms memberships'),
+    'type' => MENU_CALLBACK,
+  );
+  $items['user/%user/membership'] = array(
+    'title' => 'Membership',
+    'page callback' => 'ms_membership_user_membership_page',
+    'page arguments' => array(1),
+    'access callback' => 'ms_membership_user_membership_page_access_test',
+    'access arguments' => array(1),
+    'type' => MENU_LOCAL_TASK,
+  );
+
+  return $items;
+}
+
+function ms_membership_user_membership_page_access_test($account) {
+  global $user;
+  if (variable_get('ms_membership_show_current_memberships', 0)) {
+    if ($user->uid == $account->uid OR user_access('administer ms memberships')) {
+      return TRUE;
+    }
+  }
+  return FALSE;
+}
+
+// ======================================
+// License and Updates
+// ======================================
+
+/**
+ * Implementation of hook_requirements
+ */
+function ms_membership_requirements($phase) {
+  if ($phase == 'runtime') {
+    $req_cache = cache_get('ms_membership_requirements');
+    $req = $req_cache->data;
+    if (!is_array($req)) {
+      $req = array('title' => 'MS Membership Suite');
+      if (ms_membership_check_license()) {
+        $req['value'] = 'This Software is properly licensed.';
+        $req['severity'] = REQUIREMENT_OK;
+      }
+      else {
+        $req['value'] = 'This Software is not properly licensed. You cannot receive any updates or support.';
+        $req['severity'] = REQUIREMENT_ERROR;
+      }
+      cache_set('ms_membership_requirements', $req, 'cache');
+    }
+    $requirements['ms_membership'] = $req;
+  }
+  return $requirements;
+}
+
+/**
+ * Helper function to check the license for the software, used for fetching updates
+ */
+function ms_membership_check_license() {
+  $rec_data = xmlrpc('http://www.moneyscripts.net/xmlrpc.php', 'moneyscripts.check_license', variable_get('ms_membership_public_key', ''), $_SERVER['HTTP_HOST'], 7);
+  
+  $data = array();
+  $data['time'] = time();
+  
+  if ($rec_data == variable_get('ms_membership_private_key', '')) {
+    $data['success'] = TRUE;
+    cache_set('msms', $data);
+    return TRUE;
+  }
+  else {
+    $data['success'] = FALSE;
+    cache_set('msms', $data);
+    return FALSE;
+  }
+}
+
+/**
+ * Implementation of hook_update_status_alter
+ */
+function ms_membership_update_status_alter(&$projects) {
+  $updates_cache = cache_get('ms_membership_updates');
+  $updates = $updates_cache->data;
+  if (!$updates_cache->created) {
+    $updates = array();
+    $updates = xmlrpc('http://www.moneyscripts.net/xmlrpc.php', 'moneyscripts.check_updates', variable_get('ms_membership_public_key', ''), $_SERVER['HTTP_HOST'], 7, 6, $projects['ms_membership']);
+    cache_set('ms_membership_updates', $updates, 'cache');
+  }
+  if (is_array($updates)) {
+    $projects['ms_membership'] = $updates;
+  }
+}
+
+// ======================================
+// Administration Page:
+// ======================================
+
+/**
+ * Admin Settings Form
+ */
+function ms_membership_admin() {
+  if (!variable_get('ms_membership_public_key', '')) {
+    $form['license'] = array(
+      '#type' => 'fieldset',
+      '#title' => t('License Keys'),
+      '#collapsible' => FALSE,
+      '#collapsed' => FALSE,
+    );
+    $form['license']['ms_membership_public_key'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Public Key'),
+      '#description' => t("Enter the Public Key for this software as found in your 'My Software' area of your account on MoneyScripts.net"),
+      '#required' => TRUE,
+      '#default_value' => variable_get('ms_membership_public_key', ''),
+    );
+    $form['license']['ms_membership_private_key'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Private Key'),
+      '#description' => t("Enter the Private Key for this software as found in your 'My Software' area of your account on MoneyScripts.net"),
+      '#required' => TRUE,
+      '#default_value' => variable_get('ms_membership_private_key', ''),
+    );
+  }
+  else {
+    $form['ms_membership_info'] = array(
+      '#value' => '<p>'. t('Manage your membership plans in the !link', array('!link' => l('Membership Plans Manager', 'admin/build/ms_membership/list'))) .'</p>',
+    );
+    $form['main'] = array(
+      '#type' => 'fieldset',
+      '#title' => t('Main Settings'),
+      '#collapsible' => FALSE,
+      '#collapsed' => FALSE,
+    );
+    $form['email'] = array(
+      '#type' => 'fieldset',
+      '#title' => t('Email Settings'),
+      '#collapsible' => FALSE,
+      '#collapsed' => FALSE,
+    );
+    $form['integration'] = array(
+      '#type' => 'fieldset',
+      '#title' => t('3rd Party Modules Integration'),
+      '#collapsible' => TRUE,
+      '#collapsed' => TRUE,
+    );
+    $form['license'] = array(
+      '#type' => 'fieldset',
+      '#title' => t('License Keys'),
+      '#collapsible' => TRUE,
+      '#collapsed' => TRUE,
+    );
+    $form['main']['ms_membership_force_signup'] = array(
+      '#type' => 'checkbox',
+      '#title' => t('Enforce Paid Membership at Registration?'),
+      '#default_value' => variable_get('ms_membership_force_signup', FALSE),
+      '#description' => t('This option will require all new registering users to purchase a membership plan when registering.
+      Due to the nature of the registration process in drupal, other modules which modify the registration process may not
+      be fully compatible with MS Membership Suite.'),
+      '#required' => FALSE,
+    );
+    $form['main']['ms_membership_registration_free_name'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Free Option Name'),
+      '#default_value' => variable_get('ms_membership_registration_free_name', t('None')),
+      '#description' => t('If paid membership is not enforced, what should the free option be called?'),
+      '#required' => TRUE,
+    );
+    $form['integration']['ms_membership_fix_content_profile'] = array(
+      '#type' => 'checkbox',
+      '#title' => t('Fix Content Profile?'),
+      '#default_value' => variable_get('ms_membership_fix_content_profile', FALSE),
+      '#description' => t('This option will override one of the functions of Content Profile, allowing it to work in conjunction with Membership Suite on the Registration Form.'),
+      '#required' => FALSE,
+    );
+    $form['main']['ms_membership_skip_registration'] = array(
+      '#type' => 'checkbox',
+      '#title' => t('Skip Registration?'),
+      '#default_value' => variable_get('ms_membership_skip_registration', FALSE),
+      '#description' => t('This option will allow the purchase links to bypass the regular registration page, and go straight to checkout when anonymous users click them. 
+      They will still have to enter their new user information on the checkout page. 
+      Use this with settings in MS Core to combine the registration and checkout steps into one.'),
+      '#required' => FALSE,
+    );
+    $form['main']['ms_membership_show_membership_price'] = array(
+      '#type' => 'checkbox',
+      '#title' => t('Show Membership Plan Price?'),
+      '#default_value' => variable_get('ms_membership_show_membership_price', TRUE),
+      '#description' => t('This will be placed in between the Membership Plan Name and Description on the Registration Page and Purchase Pages'),
+      '#required' => FALSE,
+    );
+    $form['main']['ms_membership_registration_form_weight'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Membership Plans Fieldset Weight on the Registration Page'),
+      '#default_value' => variable_get('ms_membership_registration_form_weight', 0),
+      '#description' => t('Change this to place the Membership Plans form element wherever you want on the Registration page. The higher the number, the lower it will be on the form. You may also specify negative values.'),
+      '#required' => FALSE,
+    );
+    $form['main']['ms_membership_enforce_single'] = array(
+      '#type' => 'checkbox',
+      '#title' => t('Enforce Single Membership Plan'),
+      '#default_value' => variable_get('ms_membership_enforce_single', FALSE),
+      '#description' => t('Allow users to have only 1 Membership Plan at a time?'),
+      '#required' => FALSE,
+    );
+    $form['main']['ms_membership_show_current_memberships'] = array(
+      '#type' => 'checkbox',
+      '#title' => t('Show Current Memberships in User Account?'),
+      '#default_value' => variable_get('ms_membership_show_current_memberships', FALSE),
+      '#description' => t('Show the current memberships which a user has'),
+      '#required' => FALSE,
+    );
+    $form['main']['ms_membership_show_cancel'] = array(
+      '#type' => 'checkbox',
+      '#title' => t('Show Cancel Membership Links in User Account?'),
+      '#default_value' => variable_get('ms_membership_show_cancel', FALSE),
+      '#description' => t('Show the links to cancel a membership in the user account'),
+      '#required' => FALSE,
+    );
+    $form['main']['ms_membership_show_user_links'] = array(
+      '#type' => 'checkbox',
+      '#title' => t('Show Purchase Membership Links in User Account?'),
+      '#default_value' => variable_get('ms_membership_show_user_links', FALSE),
+      '#description' => t('This option will show the memberships which a user can purchase in their user account.'),
+      '#required' => FALSE,
+    );
+    $form['main']['ms_membership_refund_remove'] = array(
+      '#type' => 'checkbox',
+      '#title' => t('Remove Role for Refunds?'),
+      '#default_value' => variable_get('ms_membership_refund_remove', FALSE),
+      '#description' => t('Check this to have roles associated with non-recurring memberships be removed if that membership is refunded.'),
+      '#required' => FALSE,
+    );
+    $form['email']['ms_membership_notify_emails'] = array(
+      '#type' => 'textarea',
+      '#title' => t('Notification Email Addresses'),
+      '#description' => t("Enter a comma separated list of email addresses which should receive the emails below."),
+      '#required' => FALSE,
+      '#default_value' => variable_get('ms_membership_notify_emails', ''),
+    );
+    $form['email']['ms_membership_new_membership_mail_subject'] = array(
+      '#type' => 'textfield',
+      '#title' => t('New Membership Signup Admin Email Subject'),
+      '#required' => FALSE,
+      '#default_value' => variable_get('ms_membership_new_membership_mail_subject', t("New Signup: [user]!")),
+    );
+    $form['email']['ms_membership_new_membership_mail_body'] = array(
+      '#type' => 'textarea',
+      '#title' => t('New Membership Signup Admin Email Body'),
+      '#description' => t("Leave blank to not send an email."),
+      '#required' => FALSE,
+      '#default_value' => variable_get('ms_membership_new_membership_mail_body', t("A new membership has been purchased!
+      User: [user]
+      Name: [customerName]
+      Membership Plan: [planName]
+      Amount: [paymentAmount]
+      Date: [site-date]
+      Roles: [changedRoles]")),
+    );
+    $form['email']['ms_membership_new_membership_mail_token_help'] = array(
+      '#title' => t('Replacement patterns'),
+      '#type' => 'fieldset',
+      '#collapsible' => TRUE,
+      '#collapsed' => TRUE,
+    );
+  
+    $form['email']['ms_membership_new_membership_mail_token_help']['help'] = array(
+      '#value' => theme('token_help', array('ms_membership', 'ms_membership_plan', 'ms_core_order', 'ms_core_payment', 'user')),
+    );
+    $form['email']['ms_membership_cancelled_membership_mail_subject'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Cancelled Membership Admin Email Subject'),
+      '#required' => FALSE,
+      '#default_value' => variable_get('ms_membership_cancelled_membership_mail_subject', t("Membership Cancelled: [user]!")),
+    );
+    $form['email']['ms_membership_cancelled_membership_mail_body'] = array(
+      '#type' => 'textarea',
+      '#title' => t('Cancelled Membership Admin Email Body'),
+      '#description' => t("Leave blank to not send an email."),
+      '#required' => FALSE,
+      '#default_value' => variable_get('ms_membership_cancelled_membership_mail_body', t("A membership has been cancelled.
+      User: [user]
+      Name: [customerName]
+      Membership Plan: [planName]
+      Date: [site-date]")),
+    );
+    $form['email']['ms_membership_cancelled_membership_mail_token_help'] = array(
+      '#title' => t('Replacement patterns'),
+      '#type' => 'fieldset',
+      '#collapsible' => TRUE,
+      '#collapsed' => TRUE,
+    );
+
+    $form['email']['ms_membership_cancelled_membership_mail_token_help']['help'] = array(
+      '#value' => theme('token_help', array('ms_membership', 'ms_membership_plan', 'ms_core_order', 'ms_core_payment', 'user')),
+    );
+    $form['license']['ms_membership_public_key'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Public Key'),
+      '#description' => t("Enter the Public Key for this software as found in your 'My Software' area of your account on MoneyScripts.net"),
+      '#required' => TRUE,
+      '#default_value' => variable_get('ms_membership_public_key', ''),
+    );
+    $form['license']['ms_membership_private_key'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Private Key'),
+      '#description' => t("Enter the Private Key for this software as found in your 'My Software' area of your account on MoneyScripts.net"),
+      '#required' => TRUE,
+      '#default_value' => variable_get('ms_membership_private_key', ''),
+    );
+  }
+
+  return system_settings_form($form);
+}//function admin settings
+
+function ms_membership_admin_validate($form, &$form_state) {
+  if ($form_state['values']['ms_membership_public_key'] != variable_get('ms_membership_public_key', '')) {
+    // Clear the cache for license and updates
+    cache_clear_all('ms_membership_updates', 'cache');
+    cache_clear_all('ms_membership_requirements', 'cache');
+  }
+}
+
+// ======================================
+// User Hooks
+// ======================================
+/**
+ * Implementation of hook_user().
+ */
+function ms_membership_user($type, &$edit, &$account, $category = NULL) {
+  switch ($type) {
+    case 'delete':
+      return ms_membership_user_delete($account);
+    case 'register':
+      return ms_membership_user_register($account, $edit);
+    case 'load':
+      return ms_membership_user_load($account);
+    case 'insert':
+      return ms_membership_user_insert($account, $edit);
+    case 'update':
+      return ms_membership_user_update($edit);
+    case 'categories':
+      $categories = array();
+      $categories[] = array(
+        'name' => 'ms_membership_add',
+        'title' => t('Add Membership'),
+        'weight' => 99,
+        'access callback' => 'user_access',
+        'access arguments' => array('administer users'),
+      );
+      return $categories;
+      break;
+    case 'form':
+      // Add a membership form for the admins who are editing accounts
+      if ($category == 'ms_membership_add') {
+        $form = array();
+        ms_membership_fetch_user_admin_form($form);
+        return $form;
+      }
+      break;
+  }
+}
+
+/**
+ * Clean up the registration artifacts
+ */
+function ms_membership_user_update(&$edit) {
+  $edit['ms_membership_add_new'] = NULL;
+  $edit['ms_membership_mpid'] = NULL;
+  $edit['ms_membership_amount_paid'] = NULL;
+  $edit['ms_membership_transaction_number'] = NULL;
+  $edit['ms_membership_current_payments'] = NULL;
+  $edit['ms_membership_max_payments'] = NULL;
+  $edit['ms_membership_start_date'] = NULL;
+  $edit['ms_membership_should_expire'] = NULL;
+  $edit['ms_membership_status'] = NULL;
+  $edit['ms_membership_expiration'] = NULL;
+  $edit['ms_membership_submit'] = NULL;
+}
+
+/**
+ * Provide support for Free Memberships
+ */
+function ms_membership_user_insert(&$account, &$edit) {
+  // Check if it is a free membership
+  if ($edit['ms_membership_free_id']) {
+    $m_plan = ms_membership_load_membership_plan($edit['ms_membership_free_id']);
+    
+    // Add the roles at the start of the membership
+    foreach ($m_plan->start_grant_roles as $rid) {
+      $edit['roles'] += array($rid => ms_membership_get_role_name($rid));
+    }
+    
+    // Create the order
+    $order = ms_core_order_new('cart', $account->uid);
+    
+    $order->status = 'completed';
+    
+    // Add the Product
+    $product = new stdClass();
+    
+    $product->type = 'cart';
+    // Add the product variables
+    $product->name = $m_plan->name;
+    $product->module = 'ms_membership';
+    $product->qty = 1;
+    $product->amount = $m_plan->main_amount;
+    $product->id = $m_plan->mpid;
+    
+    $order = ms_core_add_order_product($order, $product);
+    
+    $order->data['skip_registration'] = TRUE;
+    
+    ms_core_order_save($order);
+    
+    //Insert into Memberships database
+    $status = 3;
+    $expiration = ms_membership_get_expiration_date($m_plan->mpid);
+    $membership = ms_membership_insert_membership($order->oid, $account->uid, $m_plan->mpid, $expiration, $status, 0, 1, 1);
+  
+    $payment_vars = array(
+      'mid' => $membership->mid,
+    );
+  
+    //send email
+    drupal_mail('ms_membership', 'signup', $account->mail, user_preferred_language($account), $payment_vars);
+    
+    //Send Email to Admin
+    if (variable_get('ms_membership_new_membership_mail_body', '')) {
+      drupal_mail('ms_membership', 'admin_signup', variable_get('site_mail', ''), language_default(), $payment_vars);
+    }
+    
+    // Clean up the registration artifacts
+    ms_membership_user_update($edit);
+  }
+}
+
+/**
+ * Delete all memberships related to a user when the user is deleted
+ */
+function ms_membership_user_delete($account) {
+  $result = db_query("DELETE FROM {ms_memberships} WHERE uid=%d", $account->uid);
+  return $result;
+}
+
+/**
+ * Load the memberships that a user has into the user object for use later
+ */
+function ms_membership_user_load(&$account) {
+  $ms_memberships = array();
+  $result = db_query("SELECT * FROM {ms_memberships} WHERE uid=%d", $account->uid);
+  while ($membership = db_fetch_object($result)) {
+    $ms_memberships[] = array(
+      'mpid' => $membership->mpid,
+      'mid' => $membership->mid,
+      'status' => $membership->status,
+      'oid' => $membership->oid,
+      'expiration' => $membership->expiration,
+      'start_date' => $membership->start_date,
+      );
+  }
+  $account->ms_memberships = $ms_memberships;
+}
+
+/**
+ * Show the User Account items
+ */
+function ms_membership_show_user_memberships($uid) {
+  $account = user_load(array('uid' => $uid));
+  $headers = array(t('Name'), t('Status'), t('Next Payment'), t('Expiration'), t('Actions'));
+  if (user_access('modify own membership')) {
+    $js = "$('.modLink').click(function(event){
+$(this).siblings('.subModList').toggle('slow');
+event.preventDefault();
+});";
+    drupal_add_js($js, 'inline', 'footer');
+  }
+  $rows = array();
+  foreach ($account->ms_memberships as $s_mem) {
+    $lp_string = t('N/A');
+    if ($s_mem['oid'] != -1) {
+      $order = ms_core_order_load($s_mem['oid']);
+      $lp_string = ms_core_get_last_payment_string($order);
+      $np_string = ms_core_get_next_payment_string($order);
+    }
+    $m_plan = ms_membership_load_membership_plan($s_mem['mpid']);
+    
+    $display = array();
+    
+    $display[] = "<span class='ms_membership_plan_name' title='"
+        . $m_plan->description ."'>". $m_plan->name ."</span>";
+    
+    $status = ms_membership_get_membership_status_text($s_mem['status']);
+    $expiration = ($s_mem['expiration']) ? date('M d, Y', $s_mem['expiration']) : t('None');
+    $sub_row = array(
+      'name' => implode(' - ', $display),
+      'status' => $status,
+      'payment' => $np_string,
+      'expiration' => $expiration,
+      'actions' => '',
+      );
+      
+    $s_actions = array();
+    
+    switch ($s_mem['status']) {
+      case 1:
+        // Cancel Link
+        if (variable_get('ms_membership_show_cancel', 0)) {
+          if ($cancel_url = ms_core_get_cancel_url($order)) {
+            $s_actions[] = l(t('Cancel Membership'), $cancel_url, 
+              array('query' => drupal_get_destination()));
+          }
+        }
+      break;
+    }
+    
+    switch ($s_mem['status']) {
+      case 1:
+      case 3:
+      case 4:
+        // Billing Settings Link
+        if ($billing_url = ms_core_get_billing_url($order)) {
+          $s_actions[] = l(t('Change Billing'), $billing_url, 
+            array('query' => drupal_get_destination()));
+        }
+        
+        // Show the Change Membership link
+        if (user_access('modify own membership', $account)) {
+          if ($modify_options = ms_membership_get_modify_options($m_plan)) {
+            $modify_urls = array();
+            foreach ($modify_options as $modify_option) {
+              $modify_url = ms_core_get_modify_url($order, $modify_option->mpid);
+              if ($modify_url) {
+                $modify_urls[] = l($modify_option->name, $modify_url);
+              }
+            }
+            
+            if ($modify_url) {
+              $s_actions[] = l(t('Change Membership'), 'membership/change/'. $s_mem['mid'], 
+                array('attributes' => array('class' => 'ms_modify_button', 'rel' => $m_plan->mpid)));
+            }
+          }
+        }
+      break;
+    }
+    
+    // Show Renewal/Extend Link
+    // Check to see if the user can purchase the membership according to their roles
+    if (user_access('renew own membership') AND ms_membership_can_purchase($account, $m_plan) AND !ms_membership_plan_is_free($m_plan)) {
+      if ($m_plan->recurring) {
+        if ($s_mem['status'] == 0 OR $s_mem['status'] == 2) {
+          $s_actions[] = l(t('Renew'), ms_membership_get_renewal_link($s_mem['mpid'], $s_mem['mid']));
+        }
+      }
+      else {
+        if ($s_mem['status'] == 0) {
+          $s_actions[] = l(t('Renew'), ms_membership_get_renewal_link($s_mem['mpid'], $s_mem['mid']));
+        }
+        if ($s_mem['status'] != 0 AND $s_mem['expiration']) {
+          $s_actions[] = l(t('Extend'), ms_membership_get_renewal_link($s_mem['mpid'], $s_mem['mid']));
+        }
+      }
+    }
+    
+    $sub_row['actions'] = implode($s_actions, ' | ');
+    
+    $rows[] = $sub_row;
+  }
+  
+  if (!empty($rows)) {
+    return theme('table', $headers, $rows, array('id' => 'ms-user-memberships-table'));
+  }
+  return FALSE;
+}
+
+/**
+ * Show the Membership Tab page
+ */
+function ms_membership_user_membership_page($account) {
+  $form = array();
+  $cur_memberships = ms_membership_show_user_memberships($account->uid);
+  if ($cur_memberships) {
+    $form['current_memberships'] = array(
+      '#type' => 'fieldset',
+      '#title' => t('Current Memberships'),
+      '#collapsible' => FALSE,
+      '#collapsed' => FALSE,
+      );
+    $form['current_memberships']['list'] = array(
+      '#type' => 'item',
+      '#value' => $cur_memberships,
+      );
+  }
+  
+  //Show the Purchase Membership Box in User Account
+  if (user_access('purchase membership') AND variable_get('ms_membership_show_user_links', FALSE)) {
+    $has_active_sub = 0;
+    foreach ($account->ms_memberships as $user_sub) {
+      switch ($user_sub['status']) {
+        case 1:
+        case 3:
+        case 4:
+          $has_active_sub = 1;
+        break;
+      }
+    }
+    if ($has_active_sub AND variable_get('ms_membership_enforce_single', FALSE)) {
+      
+    }
+    else {
+      $set_parent = 0;
+      $result = db_query("SELECT * FROM {ms_membership_plans} ORDER BY weight ASC");
+      $cur_subs = array();
+      foreach ($account->ms_memberships as $s) {
+        if ($s->status == 1) {
+          $cur_subs[] = $s['mpid'];
+        }
+      }
+      while ($m_plan = db_fetch_object($result)) {
+        $allowed_roles = unserialize($m_plan->allow_roles);
+        if (is_array($allowed_roles)) {
+          $allowed_roles = array_filter($allowed_roles);
+        }
+        if (!empty($allowed_roles)) { // Only show for allowed roles
+          $test_roles = array_flip($account->roles);
+          $has_roles = array_intersect($test_roles, $allowed_roles);
+          if (empty($has_roles)) {
+            continue;
+          }
+        }
+         if (!in_array($m_plan->mpid, $cur_subs) AND $m_plan->show_account) {
+          if ($m_plan->main_amount > 0) { // Don't show Free Memberships
+            if (!$set_parent) {
+              $form['ms_membership'] = array(
+                '#type' => 'fieldset',
+                '#title' => t('Purchase Membership'),
+                '#collapsible' => FALSE,
+                '#collapsed' => FALSE,
+                );
+              $set_parent = 1;
+            }
+            
+            $display = array();
+            
+            $display[] = $m_plan->name;
+            
+            if (variable_get('ms_membership_show_membership_price', TRUE)) {
+              $display[] = ms_core_get_recurring_string($m_plan, $m_plan->recurring);
+            }
+            if ($m_plan->description) {
+              $display[] = $m_plan->description;
+            }
+            $form['ms_membership']['membership_'. $m_plan->mpid] = array(
+                '#value' => '<p>'. l(implode(' - ', $display), 'membership/purchase/'. $m_plan->mpid) .'</p>',
+                '#weight' => $m_plan->weight,
+              );
+          }
+        }
+      }
+    }
+  }
+  $html .= drupal_render($form);
+  return $html;
+}
+
+/**
+ * Kept for backwards compatibility
+ */
+function ms_membership_user_view(&$account) {
+  $account->content = ms_membership_user_membership_page($account);
+}
+
+/**
+ * Insert the Membership choices into the Registration Form
+ */
+function ms_membership_user_register(&$account, &$edit) {
+  if (!user_access('administer users') AND (arg(0) == 'user')) { // Don't show plans for admin created accounts
+    $result = db_query("SELECT * FROM {ms_membership_plans} ORDER BY weight ASC");
+    $m_plans = array();
+    while ($m_plan = db_fetch_object($result)) {
+      $special_url_plan = FALSE;
+      
+      // Filter the Membership Plans for Special URLS
+      if ($register_arg = arg(2)) {
+        $register_urls = explode(',', $m_plan->register_urls);
+        
+        // Check if it is a special page for 1 membership
+        if ($register_arg == 'membership' AND $arg_plan = arg(3)) {
+          if ($m_plan->name != rawurldecode($arg_plan)) {
+            continue;
+          }
+        }
+        
+        elseif (!in_array($register_arg, $register_urls)) {
+          continue;
+        }
+        
+        $special_url_plan = TRUE;
+      }
+  
+      $allowed_roles = unserialize($m_plan->allow_roles);
+      if (is_array($allowed_roles)) {
+        $allowed_roles = array_filter($allowed_roles);
+      }
+      if (!empty($allowed_roles) AND !$allowed_roles[1]) { // Only show plans that are available to anonymous users
+        continue;
+      }
+      
+      // Only show plans that are set to show on the User Registration Screen
+      if (!$m_plan->show_registration AND !$special_url_plan) {
+        continue;
+      }
+      
+      $m_plans[$m_plan->mpid] = ms_membership_get_plan_option_text($m_plan);
+    }
+    
+    $form = array();
+    if (!empty($m_plans)) {
+      $options = array();
+      
+      if (!variable_get('ms_membership_force_signup', FALSE)) {
+        $options[0] = variable_get('ms_membership_registration_free_name', t('None'));
+      }
+      
+      foreach ($m_plans as $mpid => $name) {
+        $options[$mpid] = $name;
+      }
+      
+      $form['ms_membership'] = array(
+        '#type' => 'fieldset',
+        '#attributes' => array('id' => 'ms_membership_fieldset'),
+        '#title' => t('Membership Level'),
+        '#weight' => variable_get('ms_membership_registration_form_weight', 0),
+        '#collapsible' => FALSE);
+      $form['ms_membership']['mpid'] = array(
+        '#type' => 'radios',
+        '#title' => t('Choose your Membership Level'),
+        '#options' => $options,
+        '#required' => variable_get('ms_membership_force_signup', FALSE),
+        );
+      
+      if (variable_get('ms_membership_force_signup', FALSE)) {
+        $form['ms_membership']['mpid']['#default_value'] = key($options);
+      }
+    }
+    elseif (arg(1) == 'register' AND $register_arg AND variable_get('ms_membership_force_signup', FALSE)) {
+      //drupal_access_denied();
+    }
+    
+    return $form;
+  }
+}
+
+/**
+ * Custom Submit Function for the registration form so that the users won't be created until after they pay
+ */
+function ms_membership_register_form_submit($form, &$form_state) {
+  //Prepare the Variables
+  $m_plan = ms_membership_load_membership_plan($form_state['values']['mpid']);
+  
+  if ($m_plan->mpid) {
+    $m_plan->modify = 0;
+    
+    $product = new stdClass();
+    
+    if ($m_plan->main_amount == 0) {
+      $form_state['values']['ms_membership_free_id'] = $m_plan->mpid;
+      return;
+    }
+    
+    if ($m_plan->recurring) {
+      $product->type = 'recurring';
+      // Set the Recurring Schedule Settings
+      $product->recurring_schedule = array(
+        'total_occurrences' => $m_plan->total_occurrences,
+        'main_amount' => $m_plan->main_amount,
+        'main_length' => $m_plan->main_length,
+        'main_unit' => $m_plan->main_unit,
+        'has_trial' => ($m_plan->trial_length) ? TRUE : FALSE,
+        'trial_amount' => $m_plan->trial_amount,
+        'trial_length' => $m_plan->trial_length,
+        'trial_unit' => $m_plan->trial_unit,
+        );
+    }
+    else {
+      $product->type = 'cart';
+    }
+    
+    // Add the product variables
+    $product->name = $m_plan->name;
+    $product->module = 'ms_membership';
+    $product->qty = 1;
+    $product->amount = $m_plan->main_amount;
+    $product->id = $m_plan->mpid;
+    
+    // Store the custom data
+    $product->data = $m_plan->data;
+    $product->data['form'] = $form_state['values'];
+    $product->data['skip_registration'] = TRUE;
+    
+    // Empty the cart first
+    ms_core_empty_cart();
+    
+    ms_core_add_cart_product($product, TRUE);
+    
+    ms_core_checkout();
+    exit;
+  }
+}
+
+/**
+ * Implementation of hook_form_alter()
+ * Change the submit function to our custom function if needed 
+ */
+function ms_membership_form_alter(&$form, $form_state, $form_id) {
+  // drupal_set_message('<pre>'. print_r($form, TRUE) .'</pre>');
+  
+  switch ($form_id) {
+    case 'user_register':
+      // Add a membership form for the admins who are creating accounts
+      if (user_access('administer users')) {
+        ms_membership_fetch_user_admin_form($form);
+      }
+      
+      // Replace Content Profile's validation function with ours
+      if (variable_get('ms_membership_fix_content_profile', FALSE) AND module_exists('content_profile')) {
+        if ($key = array_search('content_profile_registration_user_register_validate', $form['#validate'])) {
+          $form['#validate'][$key] = 'ms_membership_content_profile_registration_user_register_validate';
+        }
+      }
+      
+      // Don't hook it if the settings are set
+      if ($form_state['values']['ps_paid'] == TRUE || !isset($form['ms_membership'])) {
+        break;
+      }
+      
+      // Clean up
+      unset($form_state['values']['ms_membership_submit'], $form_state['values']['mpid'], $form_state['values']['ps_paid']);
+      
+      // Store the submit handlers for later use
+      $form['ms_membership_submit'] = array(
+        '#type' => 'value',
+        '#value' => $form['#submit']
+      );
+      
+      // Put our form submit handler first in the list
+      array_unshift($form['#submit'], 'ms_membership_register_form_submit');
+      
+      break;
+  }
+}
+
+// ======================================
+// Functions:
+// ======================================
+
+/**
+ * Return the text for a plan option form
+ */
+function ms_membership_get_plan_option_text($m_plan) {
+  $display = array();
+  
+  $display[] = "<span class='ms_membership_plan_name'>". $m_plan->name ."</span>";
+  
+  if (variable_get('ms_membership_show_membership_price', TRUE)) {
+    $display[] = "<span class='ms_membership_plan_price'>"
+      .ms_core_get_recurring_string($m_plan, $m_plan->recurring)
+      ."</span>";
+  }
+  if ($m_plan->description) {
+    $display[] = "<span id='md". $m_plan->mpid ."' class='more_detailsDiv'>". $m_plan->description ."</span>";
+  }
+  return implode(' - ', $display);
+}
+
+/**
+ * Get the modification options for a plan
+ */
+function ms_membership_get_modify_options($m_plan) {
+  $options = array();
+  $modify_options = array_filter($m_plan->modify_options);
+  foreach ($modify_options as $mpid => $name) {
+    $plan = ms_membership_load_membership_plan($mpid);
+    $options[$plan->mpid] = $plan;
+  }
+  
+  if (!empty($options)) {
+    return $options;
+  }
+  
+  return FALSE;
+}
+
+/**
+ * Return a list of modify options for a plan
+ */
+function ms_memebrship_get_modify_options_plan_list($mpid = NULL) {
+  $plans = ms_membership_get_plans();
+  $options = array();
+  
+  if ($mpid) {
+    unset($plans[$mpid]);
+  }
+  
+  foreach ($plans as $id => $name) {
+    $plan = ms_membership_load_membership_plan($id);
+    if ($plan->recurring) {
+      $options[$plan->mpid] = $plan->name;
+    }
+  }
+  return $options;
+}
+
+/**
+ * Check if a membership plan is free
+ */
+function ms_membership_plan_is_free($m_plan) {
+  if ($m_plan->main_amount == 0 OR $m_plan->main_amount == 0.00) {
+    return TRUE;
+  }
+  return FALSE;
+}
+
+/**
+ * Check if a user has a membership
+ */
+function ms_membership_user_has_membership($uid, $mpid, $renewing = FALSE) {
+  if ($uid) {
+    $result = db_query("SELECT * FROM {ms_memberships} WHERE uid=%d AND mpid=%d", $uid, $mpid);
+    
+    while ($row = db_fetch_object($result)) {
+      if ($renewing) {
+        switch ($row->status) {
+          case 1:
+            return TRUE;
+          break;
+        }
+      }
+      else {
+        switch ($row->status) {
+          case 1:
+          case 2:
+          case 3:
+          case 4:
+            return TRUE;
+          break;
+        }
+      }
+    }
+  }
+  
+  return FALSE;
+}
+
+/**
+ * Return the text for the membership status
+ */
+function ms_membership_get_membership_status_text($status) {
+  switch ($status) {
+    case 0: return t('Expired / Inactive');
+    case 1: return t('Active');
+    case 2: return t('Cancelled');
+    case 3: return t('Active - Payments Completed');
+    case 4: return t('Expiring Soon');
+  }
+}
+
+/**
+ * Return an array of statuses
+ */
+function ms_membership_get_membership_statuses() {
+  $statuses = array(
+    '0' => t('Expired / Inactive'),
+    '1' => t('Active'),
+    '2' => t('Cancelled'),
+    '3' => t('Active - Payments Completed'),
+    '4' => t('Expiring Soon'),
+    );
+    
+  return $statuses;
+}
+
+/*
+ * Change a membership's status
+ */ 
+function ms_membership_change_membership_status($mid, $status) {
+  if (variable_get('ms_core_debug_mode', FALSE)) {
+    watchdog('ms_membership', 'Changed the Status of Membership !mid to !status', 
+      array('!mid' => $mid, '!status' => ms_membership_get_membership_status_text($status)));
+  }
+  return db_query("UPDATE {ms_memberships} SET status=%d WHERE mid=%d", $status, $mid);
+}
+
+/*
+ * Change a membership's order id
+ */ 
+function ms_membership_change_membership_oid($mid, $oid) {
+  if (variable_get('ms_core_debug_mode', FALSE)) {
+    watchdog('ms_membership', 'Changed the Order ID of Membership !mid to !oid', 
+      array('!mid' => $mid, '!oid' => $oid));
+  }
+  return db_query("UPDATE {ms_memberships} SET oid=%d WHERE mid=%d", $oid, $mid);
+}
+
+/*
+ * Change a membership's expiration
+ */ 
+function ms_membership_change_membership_expiration($mid, $expiration) {
+  if (variable_get('ms_core_debug_mode', FALSE)) {
+    watchdog('ms_membership', 'Changed the Expiration Date of Membership !mid to !expiration', 
+      array('!mid' => $mid, '!expiration' => date('M d, Y', $expiration)));
+  }
+  return db_query("UPDATE {ms_memberships} SET expiration=%d WHERE mid=%d", $expiration, $mid);
+}
+
+/**
+ * Return a listing of Membership Plans
+ */
+function ms_membership_get_plans() {
+  $result = db_query("SELECT mpid, name FROM {ms_membership_plans} ORDER BY weight ASC");
+  $plans = array();
+  while ($m_plan = db_fetch_object($result)) {
+    $plans[$m_plan->mpid] = $m_plan->name;
+  }
+  return $plans;
+}
+
+function ms_membership_insert_new_membership($m_plan, $account, $mail = TRUE) {
+  $roles = user_roles(TRUE);
+  
+  // Add the role
+  ms_membership_change_roles($account->uid, $m_plan->start_grant_roles, $m_plan->start_remove_roles);
+  
+  //Insert into User Memberships database
+  $status = 3;
+  $expiration = ms_membership_get_expiration_date($m_plan->mpid);
+  $membership = ms_membership_insert_membership(0, $account->uid, $m_plan->mpid, $expiration, $status, 0, 1, 1);
+  
+  $payment_vars = array(
+    'mid' => $membership->mid,
+  );
+  
+  if ($mail) {
+    //send email
+    drupal_mail('ms_membership', 'signup', $account->mail, user_preferred_language($account), $payment_vars);
+    
+    //Send Email to Admin
+    if (variable_get('ms_membership_new_membership_mail_body', '')) {
+      drupal_mail('ms_membership', 'admin_signup', variable_get('site_mail', ''), language_default(), $payment_vars);
+    }
+  }
+  
+  return $membership;
+}
+
+/**
+ * Load a Membership
+ */
+function ms_membership_load_membership($mid) {
+  $result = db_query("SELECT * FROM {ms_memberships} WHERE mid=%d", $mid);
+  if ($result) {
+    $membership = db_fetch_object($result);
+    return $membership;
+  }
+  return FALSE;
+}
+
+/**
+ * Load a Membership by Order ID
+ */
+function ms_membership_load_membership_order_id($oid) {
+  $result = db_query("SELECT * FROM {ms_memberships} WHERE oid=%d", $oid);
+  if (!empty($result)) {
+    return db_fetch_object($result);
+  }
+  return FALSE;
+}
+
+/*
+ * Add a role from a user
+ */ 
+function ms_membership_add_role($uid, $rid) {
+  $account = user_load(array('uid' => $uid));
+  if ($rid AND $account->uid AND !isset($account->roles[$rid])) {
+    if (!in_array($rid, array(DRUPAL_ANONYMOUS_RID, DRUPAL_AUTHENTICATED_RID))) {
+      db_query('INSERT INTO {users_roles} (uid, rid) VALUES (%d, %d)', $account->uid, $rid);
+      
+      // Log it
+      if (variable_get('ms_core_debug_mode', FALSE)) {
+        $roles = user_roles(TRUE);
+        watchdog('ms_membership', 'Added role !role to !user.', array('!role' => $roles[$rid], '!user' => l($account->name, 'user/'. $account->uid)));
+      }
+    }
+  }
+}
+
+/*
+ * Remove a role from a user 
+ */ 
+function ms_membership_remove_role($uid, $rid) {
+  $account = user_load(array('uid' => $uid));
+  
+  if ($rid AND $account->uid AND isset($account->roles[$rid])) {
+    if (!in_array($rid, array(DRUPAL_ANONYMOUS_RID, DRUPAL_AUTHENTICATED_RID))) {
+      db_query('DELETE FROM {users_roles} WHERE uid = %d AND rid = %d', $account->uid, $rid);
+      
+      // Log it
+      if (variable_get('ms_core_debug_mode', FALSE)) {
+        $roles = user_roles(TRUE);
+        watchdog('ms_membership', 'Removed role !role from !user.', array('!role' => $roles[$rid], '!user' => l($account->name, 'user/'. $account->uid)));
+      }
+    }
+  }
+}
+
+/*
+ * Colors for txn_type
+ */ 
+function ms_membership_txn_type($txn_type) {
+  switch ($txn_type) {
+    case 'subscr_signup': return "<span style='color:green;'>". t('Signup') ."</span>";
+    case 'subscr_payment': return "<span style='color:blue;'>". t('Payment') ."</span>";
+    case 'subscr_modify': return "<span style='color:orange;'>". t('Modification') ."</span>";
+    case 'subscr_cancel': return "<span style='color:red;'>". t('Cancellation') ."</span>";
+    case 'subscr_eot': return "<span>". t('End of Term') ."</span>";
+    case 'web_accept': return "<span style='color:green;'>". t('Purchase') ."</span>";
+    default: return $txn_type;
+  }
+}
+
+/**
+ * Save a payment to the database
+ */
+function ms_membership_insert_membership($oid, $uid, $mpid, $expiration = 0, $status = 1, $start_date = 0, $current_payments = 0, $max_payments = 0) {
+  if (!$start_date) {
+    $start_date = time();
+  }
+  $result = db_query("INSERT INTO {ms_memberships} (oid, uid, mpid, expiration, status, start_date, current_payments, max_payments)
+    VALUES (%d, %d, %d, %d, %d, %d, %d, %d)", 
+    $oid, $uid, $mpid, $expiration, $status, $start_date, $current_payments, $max_payments);
+  $mid = db_last_insert_id('ms_memberships', 'mid');
+  return ms_membership_load_membership($mid);
+}
+
+/**
+ * Update the Payment Number
+ */
+function ms_membership_increment_payment($oid, $num = 1) {
+  db_query("UPDATE {ms_memberships} SET current_payments=current_payments+%d WHERE oid=%d", $num, $oid);
+  
+  //Complete the Payment?
+  $membership = db_query("SELECT * FROM {ms_memberships} WHERE oid=%d", $oid);
+  if ($membership->max_payments AND ($membership->current_payments == $membership->max_payments)) {
+    db_query("UPDATE {ms_memberships} SET status=%d WHERE oid='%s'", 3, $oid);
+  }
+}
+
+/**
+ * Load a saved membership plan from the database
+ */
+function ms_membership_load_membership_plan($mpid) {
+  $result = db_query("SELECT * FROM {ms_membership_plans} WHERE mpid=%d", $mpid);
+  if (!empty($result)) {
+    $m_plan = db_fetch_object($result);
+    
+    // Unserialize the data
+    $m_plan->data = unserialize($m_plan->data);
+
+    // Unserialize the roles settings
+    $m_plan->allow_roles = unserialize($m_plan->allow_roles);
+    $m_plan->modify_options = unserialize($m_plan->modify_options);
+    $m_plan->start_grant_roles = unserialize($m_plan->start_grant_roles);
+    $m_plan->start_remove_roles = unserialize($m_plan->start_remove_roles);
+    $m_plan->expire_grant_roles = unserialize($m_plan->expire_grant_roles);
+    $m_plan->expire_remove_roles = unserialize($m_plan->expire_remove_roles);
+
+    // Decode the emails
+    $m_plan->signup_mail_subject = htmlspecialchars_decode($m_plan->signup_mail_subject);
+    $m_plan->signup_mail_body = htmlspecialchars_decode($m_plan->signup_mail_body);
+    $m_plan->cancel_mail_subject = htmlspecialchars_decode($m_plan->cancel_mail_subject);
+    $m_plan->cancel_mail_body = htmlspecialchars_decode($m_plan->cancel_mail_body);
+    $m_plan->expiring_mail_subject = htmlspecialchars_decode($m_plan->expiring_mail_subject);
+    $m_plan->expiring_mail_body = htmlspecialchars_decode($m_plan->expiring_mail_body);
+    $m_plan->modify_mail_subject = htmlspecialchars_decode($m_plan->modify_mail_subject);
+    $m_plan->modify_mail_body = htmlspecialchars_decode($m_plan->modify_mail_body);
+    $m_plan->eot_mail_subject = htmlspecialchars_decode($m_plan->eot_mail_subject);
+    $m_plan->eot_mail_body = htmlspecialchars_decode($m_plan->eot_mail_body);
+    
+    return $m_plan;
+  }
+  return FALSE;
+}
+
+/**
+ * Calculate the Expiration Date from the Membership Plan
+ */
+function ms_membership_get_expiration_date($mpid, $start = 0) {
+  $m_plan = ms_membership_load_membership_plan($mpid);
+  $date = 0;
+  $now = ($start) ? $start : time();
+  
+  if ($m_plan->recurring) {
+    if ($m_plan->total_occurrences) {
+      // Add time based on number of payments multiplied by period length and unit
+      $regular_time = strtotime(ms_core_get_string_time($m_plan->main_length, $m_plan->main_unit), 0);
+      $date += $regular_time * $m_plan->total_occurrences;
+      
+      // Add Time for Trial Period 1
+      if ($m_plan->trial_length) {
+        $date += strtotime(ms_core_get_string_time($m_plan->trial_length, $m_plan->trial_unit), 0);
+      }
+      
+      return $now + $date;
+    }
+    else {
+      // If no expiration, return 0
+      return 0;
+    }
+  }
+  else {
+    if ($m_plan->main_length) {
+      // Add time based on number of payments multiplied by period length and unit
+      $regular_time = strtotime(ms_core_get_string_time($m_plan->main_length, $m_plan->main_unit), 0);
+      $date += $regular_time;
+      
+      return $now + $date;
+    }
+    else {
+      // If no expiration, return 0
+      return 0;
+    }
+  }
+}
+
+/**
+ * Create a Renewal Link
+ */
+function ms_membership_get_renewal_link($mpid, $mid) {
+  return url('membership/purchase/'. $mpid .'/renew/'. $mid, array('absolute' => TRUE));
+}
+
+/**
+ * Check if a user should keep a role that is about to be removed
+ */
+function ms_membership_is_role_protected($uid, $rid) {
+  $result = db_query("SELECT * FROM {ms_memberships} WHERE uid = %d AND status != %d", $uid, 0);
+  $count = 0;
+  
+  while ($membership = db_fetch_object($result)) {
+    $added_roles = unserialize($membership->start_grant_roles);
+    if (is_array($added_roles) AND in_array($rid, $added_roles)) {
+      $count += 1;
+    }
+  }
+  
+  if ($count > 1) {
+    return TRUE;
+  }
+  
+  return FALSE;
+}
+
+/**
+ * Helper Function to quickly remove and add roles
+ */
+function ms_membership_change_roles($uid, $add = array(), $remove = array()) {
+  // Add the Roles
+  if (is_array($add)) {
+    foreach ($add as $rid) {
+      if ($rid) {
+        ms_membership_add_role($uid, $rid);
+      }
+    }
+  }
+  
+  // Remove the Roles
+  if (is_array($remove)) {
+    foreach ($remove as $rid) {
+      // Check to see if the role is protected by another membership
+      if ($rid AND !ms_membership_is_role_protected($uid, $rid)) {
+        ms_membership_remove_role($uid, $rid);
+      }
+    }
+  }
+}
+
+/**
+ * Helper Function to get the Role Name from the ID
+ */
+function ms_membership_get_role_name($rid) {
+  $roles = user_roles(TRUE);
+  return $roles[$rid];
+}
+
+/**
+ * Helper Function to get the Role Name from the ID
+ */
+function ms_membership_list_roles($m_plan, $time = 'expiration') {
+  $string = '';
+  
+  switch ($time) {
+    case 'expiration':
+    case 'cancel':
+    case 'expiring':
+    case 'eot':
+    case 'admin_cancel':
+      if (is_array($m_plan->expire_grant_roles)) {
+        foreach ($m_plan->expire_grant_roles as $rid) {
+          if ($rid) {
+            $string .= t('Added !role role. ', array('!role' => ms_membership_get_role_name($rid)));
+          }
+        }
+      }
+      if (is_array($m_plan->expire_remove_roles)) {
+        foreach ($m_plan->expire_remove_roles as $rid) {
+          if ($rid) {
+            $string .= t('Removed !role role. ', array('!role' => ms_membership_get_role_name($rid)));
+          }
+        }
+      }
+    break;
+    
+    case 'start':
+    case 'signup':
+    case 'admin_signup':
+    case 'modify':
+      if (is_array($m_plan->start_grant_roles)) {
+        foreach ($m_plan->start_grant_roles as $rid) {
+          if ($rid) {
+            $string .= t('Added !role role. ', array('!role' => ms_membership_get_role_name($rid)));
+          }
+        }
+      }
+      if (is_array($m_plan->start_remove_roles)) {
+        foreach ($m_plan->start_remove_roles as $rid) {
+          if ($rid) {
+            $string .= t('Removed !role role. ', array('!role' => ms_membership_get_role_name($rid)));
+          }
+        }
+      }
+    break;
+  }
+  
+  return $string;
+}
+
+/*
+ * Test if a user has access to purchase a membership
+ */ 
+function ms_membership_can_purchase($account, $m_plan) {
+  $allowed_roles = $m_plan->allow_roles;
+  $allowed_roles = array_filter($allowed_roles);
+  if (!is_array($allowed_roles)) {
+    return TRUE;
+  }
+  if (empty($allowed_roles)) {
+    return TRUE;
+  }
+  
+  foreach ($account->roles as $rid => $rolename) {
+    if ($allowed_roles[$rid]) {
+      return TRUE;
+    }
+  }
+  return FALSE;
+}
+  
+// ======================================
+// Pages:
+// ======================================
+
+/**
+ * Show the Available Options for changing a membership
+ */
+function ms_membership_change_membership_page($mid) {
+  $membership = ms_membership_load_membership($mid);
+  $m_plan = ms_membership_load_membership_plan($membership->mpid);
+  $order = ms_core_order_load($membership->oid);
+  // Get the modification options for a membership plan
+  if ($modify_options = ms_membership_get_modify_options($m_plan)) {
+    return drupal_get_form('ms_membership_change_membership_form', $modify_options, $order->oid);
+  }
+  drupal_access_denied();
+}
+
+/*
+ * Show a form to upgrade a membership
+ */
+function ms_membership_change_membership_form(&$form_state, $modify_options, $oid) {
+  $m_plans = array();
+  
+  foreach ($modify_options as $modify_option) {
+    $m_plans[$modify_option->mpid] = ms_membership_get_plan_option_text($modify_option);
+  }
+  
+  $form = array();
+  if (!empty($m_plans)) {
+    $form['ms_membership'] = array(
+      '#type' => 'fieldset',
+      '#attributes' => array('id' => 'ms_membership_fieldset'),
+      '#title' => t('Membership Level'),
+      '#weight' => variable_get('ms_membership_registration_form_weight', 0),
+      '#collapsible' => FALSE,
+    );
+    $form['ms_membership']['oid'] = array(
+      '#type' => 'value',
+      '#value' => $oid,
+    );
+    $form['ms_membership']['mpid'] = array(
+      '#type' => 'radios',
+      '#title' => t('Choose your Membership Level'),
+      '#options' => $m_plans,
+      '#required' => TRUE,
+    );
+    $form['ms_membership']['submit'] = array(
+      '#type' => 'submit',
+      '#value' => t('Submit'),
+    );
+    $form['#redirect'] = 'admin/build/ms_membership';
+  }
+  
+  return $form;
+}
+
+/*
+ * Submit Function for Change Membership Form. Redirect to proper page
+ */
+function ms_membership_change_membership_form_submit($form, &$form_state) {
+  $v = $form_state['values'];
+  
+  $order = ms_core_order_load($v['oid']);
+  
+  $form_state['redirect'] = FALSE;
+  
+  drupal_goto(ms_core_get_modify_url($order, $v['mpid']));
+}
+
+/*
+ * Used for Purchasing Membership 
+ */ 
+function ms_membership_purchase_membership($mpid) {
+  global $user;
+  
+  $renewing = FALSE;
+  if (arg(3) == 'renew') {
+    $renewing = TRUE;
+  }
+  
+  $data = array();
+  
+  $account = user_load($user->uid);
+  
+  // If the user can upgrade to this plan, then do it
+  if ($account->uid AND variable_get('ms_membership_enforce_single', FALSE) AND is_array($account->ms_memberships)) {
+    foreach ($account->ms_memberships as $info) {
+      $membership = ms_membership_load_membership($info['mid']);
+      $m_plan = ms_membership_load_membership_plan($membership->mpid);
+      $order = ms_core_order_load($membership->oid);
+      
+      if ($modify_options = ms_membership_get_modify_options($m_plan)) {
+        foreach ($modify_options as $u_plan) {
+          if ($u_plan->mpid == $mpid) {
+            // There is an upgrade available, do it
+            drupal_goto(ms_core_get_modify_url($order, $mpid));
+          }
+        }
+      }
+    }
+  }
+  
+  $m_plan = ms_membership_load_membership_plan($mpid);
+  
+  // Make sure the user can purchase this membership
+  if (!ms_membership_can_purchase($user, $m_plan) OR ms_membership_user_has_membership($user->uid, $m_plan->mpid, $renewing)) {
+    drupal_set_message(t('Your account is not able to purchase this membership.'));
+    drupal_access_denied();
+    exit;
+  }
+  
+  //If not registered, go to the registration page for that plan
+  if (!variable_get('ms_membership_skip_registration', FALSE) AND !$user->uid) {
+    drupal_goto('user/register/membership/'. rawurlencode($m_plan->name));
+  }
+  
+  $account = user_load(array('uid' => $user->uid));
+  
+  if ($m_plan->mpid) {
+    $product = new stdClass();
+    
+    // If amount is 0, don't go to payment gateway, just grant the membership
+    if ($account->uid AND ms_membership_plan_is_free($m_plan)) {
+      // Add and remove the roles at the start of the membership
+      ms_membership_change_roles($account->uid, $m_plan->start_grant_roles, $m_plan->start_remove_roles);
+      
+      //Insert into Memberships database
+      $status = 3;
+      $expiration = ms_membership_get_expiration_date($m_plan->mpid);
+      $membership = ms_membership_insert_membership(0, $account->uid, $m_plan->mpid, $expiration, $status, 0, 1, 1);
+      
+      // Invoke hook_ms_membership_expiring to let other modules act on a new membership
+      module_invoke_all('ms_membership_signup', $account, $membership, $m_plan);
+      
+      $payment_vars = array(
+        'mid' => $membership->mid,
+      );
+      
+      //send email
+      drupal_mail('ms_membership', 'signup', $account->mail, user_preferred_language($account), $payment_vars);
+      
+      // Send Email to Admin(s)
+      ms_membership_notify_admins('admin_signup', $payment_vars);
+      
+      drupal_set_message(t('The !memName has been added to your account.', array('!memName' => $m_plan->name)));
+      
+      drupal_goto('ms/thankyou');
+    }
+    else {
+      if ($m_plan->recurring) {
+        // Save the order
+        $product->type = 'recurring';
+        
+        // Set the Recurring Schedule Settings
+        $product->recurring_schedule = array(
+          'total_occurrences' => $m_plan->total_occurrences,
+          'main_amount' => $m_plan->main_amount,
+          'main_length' => $m_plan->main_length,
+          'main_unit' => $m_plan->main_unit,
+          'has_trial' => ($m_plan->trial_length) ? TRUE : FALSE,
+          'trial_amount' => $m_plan->trial_amount,
+          'trial_length' => $m_plan->trial_length,
+          'trial_unit' => $m_plan->trial_unit,
+          );
+      }
+      else {
+        // Save the order
+        $product->type = 'cart';
+      }
+      
+      // Store the Data Overrides
+      $product->data = $m_plan->data;
+      
+      // Add the variable for renewals
+      if ($renewing AND $membership = ms_membership_load_membership(arg(4))) {
+        // Store the Renew Mid data
+        $product->data['renew_mid'] = $membership->mid;
+        $m_plan->name .= ' - '. t('Renewal');
+      }
+      
+      // Add the product variables
+      $product->name = $m_plan->name;
+      $product->module = 'ms_membership';
+      $product->amount = $m_plan->main_amount;
+      $product->id = $m_plan->mpid;
+      
+      // Empty the cart first
+      ms_core_empty_cart();
+      
+      ms_core_add_cart_product($product, TRUE);
+      
+      ms_core_checkout();
+    }
+  }
+  else {
+    drupal_not_found();
+  }
+}
+
+/**
+ * List the membership plans in the admin area
+ */
+function ms_membership_list_plans() {
+  $output = t("These are the Membership Plans") .":<br />";
+
+  $output .= drupal_get_form('ms_membership_list_plans_form');
+  return $output;
+}
+
+/**
+ * Form to List the Membership Plans
+ */
+function ms_membership_list_plans_form(&$form_state) {
+  $result = db_query("SELECT * FROM {ms_membership_plans} ORDER BY weight ASC");
+  
+  while ($m_plan = db_fetch_object($result)) {
+    $actions = array(
+      l(t('Edit'), 'admin/build/ms_membership/edit/'. $m_plan->mpid),
+      l(t('Clone'), 'admin/build/ms_membership/clone/'. $m_plan->mpid),
+      l(t('Delete'), 'admin/build/ms_membership/delete/'. $m_plan->mpid),
+      );
+    $row = array(
+      array('data' => $m_plan->name, 'class' => 'ms_plan_name'),
+      array('data' => implode(' | ', $actions), 'class' => 'ms_plan_actions'),
+      array('data' => "<textarea rows='2' cols='40'>". l("Purchase ". $m_plan->name, 'membership/purchase/'. $m_plan->mpid, array('absolute' => TRUE)) ."</textarea>", 'class' => 'ms_plan_button'),
+      );
+      
+    $form['rows'][$m_plan->mpid]['data'] = array(
+                                 '#type' => 'value',
+                                 '#value' => $row
+                               );
+
+    $form['rows'][$m_plan->mpid]['weight-'. $m_plan->mpid] = array(
+      '#type' => 'textfield',
+      '#size' => 5,
+      '#default_value' => $m_plan->weight,
+      '#attributes' => array('class' => 'weight'),
+    );
+  }  
+  
+  $form['submit']=array(
+    '#type' => 'submit',
+    '#value' => t('Save changes'),
+  );
+
+  return $form;
+}
+
+//Save the Weight
+function ms_membership_list_plans_form_submit($form, &$form_state) {
+  foreach ($form_state['values'] as $key => $data) {
+    if (substr($key, 0, 6) == 'weight') {
+      $mpid = str_replace('weight-', '', $key);
+      db_query("UPDATE {ms_membership_plans} SET weight=%d WHERE mpid=%d", $data, $mpid);
+    }
+  }
+}
+
+/**
+ * Form to List the Membership Plans
+ */
+function theme_ms_membership_list_plans_form($form) {
+  $headers = array(
+    array('data' => t('Membership Plan'), 'class' => 'ms_plans_name_header'), 
+    array('data' => t('Actions'), 'class' => 'ms_plans_edit_header'), 
+    array('data' => t('Signup Button'), 'class' => 'ms_plans_button_header'), 
+    array('data' => t('Order'), 'class' => 'ms_plans_order_header'), 
+  );
+  $rows = array();
+  $attr = array('id' => 'ms-membership-plans-table');
+  
+  if (is_array($form['rows'])) {
+    foreach ($form['rows'] as $mpid => $row) {
+      if (intval($mpid)) {  
+        $this_row = $row['data']['#value'];
+    
+        $this_row[] = drupal_render($form['rows'][$mpid]['weight-'. $mpid]);
+    
+        $rows[] = array('data' => $this_row, 'class' => 'draggable');
+      }
+    }
+    
+    $output .= theme('table', $headers, $rows, $attr);
+    $output .= drupal_render($form);
+    drupal_add_tabledrag('ms-membership-plans-table', 'order', 'sibling', 'weight'); 
+  }
+  else {
+    $output .= "No Membership Plans - Use the 'Add Membership Plan' Link to add plans";
+  }
+
+  return $output;
+}
+
+/**
+ * Delete a Membership Plan
+ */
+function ms_membership_delete_membership_plan_confirm(&$form_state, $mpid) {
+  $m_plan = ms_membership_load_membership_plan($mpid);
+  if ($m_plan->mpid) {
+    $form['#ms_mpid'] = $m_plan->mpid;
+    return confirm_form($form, t('Are you sure you want to delete this Membership Plan: %mplan?', array('%mplan' => $m_plan->name)), 'admin/build/ms_membership/list', t('This action cannot be undone.'), t('Delete'));
+  }
+  else {
+    drupal_not_found();
+  }
+}
+
+/**
+ * Delete a Membership Plan
+ */
+function ms_membership_delete_membership_plan_confirm_submit($form, &$form_state) {
+  $m_plan = ms_membership_load_membership_plan($form['#ms_mpid']);
+  
+  // Delete the membership plan
+  $result = db_query("DELETE FROM {ms_membership_plans} WHERE mpid = %d", $m_plan->mpid);
+
+  drupal_set_message(t('Membership Plan %mplan has been deleted', array('%mplan' => $m_plan->name)));
+  $form_state['redirect'] = 'admin/build/ms_membership/list';
+}
+
+/**
+ * Show the Add Membership Form
+ */
+function ms_membership_add_membership_page() {
+  return drupal_get_form('ms_membership_membership_add_form');
+}
+
+/**
+ * Show the Edit Membership Form
+ */
+function ms_membership_edit_membership_page($mid) {
+  return drupal_get_form('ms_membership_membership_edit_form', $mid);
+}
+
+/**
+ * Delete a Membership
+ */
+function ms_membership_delete_membership_confirm(&$form_state, $mid) {
+  $membership = ms_membership_load_membership($mid);
+  if ($membership->mid) {
+    $form['#ms_mid'] = $membership->mid;
+    return confirm_form($form, t('Are you sure you want to delete this Membership?'), 'admin/user/ms_memberships', t('This action cannot be undone.'), t('Delete'));
+  }
+  else {
+    drupal_not_found();
+  }
+}
+
+/**
+ * Delete a Membership
+ */
+function ms_membership_delete_membership_confirm_submit($form, &$form_state) {
+  $membership = ms_membership_load_membership($form['#ms_mid']);
+  $account = user_load($membership->uid);
+  $m_plan = ms_membership_load_membership_plan($membership->mpid);
+  
+  // Delete the membership
+  db_query('DELETE FROM {ms_memberships} WHERE mid = %d', $membership->mid);
+
+  drupal_set_message(t('Membership %membership for user %name Deleted', array('%name' => $account->name, '%membership' => $m_plan->name)));
+  $form_state['redirect'] = 'admin/user/ms_memberships';
+}
+
+/**
+ * Show a listing of all memberships
+ */
+function ms_membership_show_memberships() {
+  global $user;
+  $output = '';
+  $headers = array(
+    array('data' => t('Start Date'), 'class' => 'ms_mem_start_date_header', 'field' => 'd.start_date', 'sort' => 'desc'),
+    array('data' => t('Expiration'), 'class' => 'ms_mem_expiration_header', 'field' => 'd.expiration'),
+    array('data' => t('User'), 'class' => 'ms_mem_user_header', 'field' => 'u.name'),
+    array('data' => t('Membership'), 'class' => 'ms_mem_name_header', 'field' => 'p.name'),
+    array('data' => t('Status'), 'class' => 'ms_mem_status_header', 'field' => 'd.status'),
+    array('data' => t('Payments'), 'class' => 'ms_mem_current_payments_header', 'field' => 'd.current_payments'),
+    array('data' => t('Actions'), 'class' => 'ms_mem_actions_header'),
+  );
+  
+  $sql = "SELECT d.current_payments, d.max_payments, d.expiration, d.start_date, d.mid, d.mpid, d.uid, d.status,
+    p.name as membership_name, u.name
+    FROM {ms_memberships} as d
+    LEFT JOIN {ms_membership_plans} as p ON d.mpid = p.mpid
+    LEFT JOIN {users} as u ON d.uid = u.uid";
+  $args = array();
+  
+  if (isset($_GET['name'])) {
+    $name = $_GET['name'];
+    $sql .= " WHERE u.name LIKE '%s'";
+    $args[] = '%'. $name .'%';
+  }
+  
+  $sql .= tablesort_sql($headers);
+  $result = pager_query($sql, 20, 0, NULL, $args);
+  $rows = array();
+  $attr = array('id' => 'ms-memberships-table');
+  while ($membership = db_fetch_object($result)) {
+    $actions = l('Edit', 'admin/user/ms_memberships/edit/'. $membership->mid) 
+      .' | '. l('Delete', 'admin/user/ms_memberships/delete/'. $membership->mid, array('attributes' => array('class' => 'txn_del')));
+    $rows[] = array(
+      array('data' => date('M d, Y', $membership->start_date), 'class' => 'ms_mem_start_date'),
+      array('data' => ($membership->expiration ? date('M d, Y', $membership->expiration) : 'None'), 'class' => 'ms_mem_expiration'),
+      array('data' => l($membership->name, 'user/'. $membership->uid), 'class' => 'ms_mem_user'),
+      array('data' => $membership->membership_name, 'class' => 'ms_mem_name'),
+      array('data' => ms_membership_get_membership_status_text($membership->status), 'class' => 'ms_mem_status'),
+      array('data' => $membership->current_payments .'/'. ($membership->max_payments ? $membership->max_payments : 'Unlimited'), 'class' => 'ms_mem_current_payments'),
+      array('data' => $actions, 'class' => 'ms_mem_actions')
+    );
+  }
+  
+  // Add the name filter
+  $output .= drupal_get_form('ms_core_name_filter_form', $name);
+  
+  $output .= theme('table', $headers, $rows, $attr);
+  $output .= theme('pager', NULL, 20, 0);
+  return $output;
+}
+
+
+
+// ======================================
+// THEME
+// ======================================
+/**
+ * Main Theme Function
+ */
+function ms_membership_theme() {
+  return array(
+    'ms_membership_list_plans_form' => array(
+      'arguments' => array('form' => NULL),
+    ),
+  );
+}
+
+// ======================================
+// MAIL
+// ======================================
+
+/**
+ * Handle Mail functions
+ */
+function ms_membership_mail($key, &$message, $seed_vars) {
+  
+  // Load the vars
+  $membership = ms_membership_load_membership($seed_vars['mid']);
+  $account = user_load($membership->uid);
+  $order = ms_core_order_load($membership->oid);
+  
+  if (!$order) {
+    $order = new stdClass();
+    $order->full_name = $account->name;
+  }
+  
+  $m_plan = ms_membership_load_membership_plan($membership->mpid);
+  $m_plan->key = $key;
+  
+  $vars = new stdClass();
+  $vars->payment = ms_core_get_last_payment($order);
+  $vars->order = $order;
+  $vars->m_plan = $m_plan;
+  $vars->account = $account;
+  $vars->membership = $membership;
+  
+  switch ($key) {
+    case 'signup':
+      // Populate the amount field for the payment if it is not set
+      $vars->payment->amount = $order->amount;
+      
+      $message['subject'] = $m_plan->signup_mail_subject;
+      $message['body'] = $m_plan->signup_mail_body;
+    break;
+    case 'cancel':
+      $message['subject'] = $m_plan->cancel_mail_subject;
+      $message['body'] = $m_plan->cancel_mail_body;
+    break;
+    case 'expiring':
+      $message['subject'] = $m_plan->expiring_mail_subject;
+      $message['body'] = $m_plan->expiring_mail_body;
+    break;
+    case 'extend':
+    case 'modify':
+      $message['subject'] = $m_plan->modify_mail_subject;
+      $message['body'] = $m_plan->modify_mail_body;
+    break;
+    case 'eot':
+      $message['subject'] = $m_plan->eot_mail_subject;
+      $message['body'] = $m_plan->eot_mail_body;
+    break;
+    case 'admin_signup':
+      // Populate the amount field for the payment if it is not set
+      $vars->payment->amount = $order->amount;
+      
+      $message['subject'] = variable_get('ms_membership_new_membership_mail_subject', '');
+      $message['body'] = variable_get('ms_membership_new_membership_mail_body', '');
+    break;
+    case 'admin_cancel':
+      $message['subject'] = variable_get('ms_membership_cancelled_membership_mail_subject', '');
+      $message['body'] = variable_get('ms_membership_cancelled_membership_mail_body', '');
+    break;
+  }
+  
+  // Replace the Membership Tokens
+  $message['subject'] = token_replace($message['subject'], 'ms_membership', $vars->membership);
+  $message['body'] = token_replace($message['body'], 'ms_membership', $vars->membership);
+  
+  // Replace the Membership Plan Tokens
+  $message['subject'] = token_replace($message['subject'], 'ms_membership_plan', $vars->m_plan);
+  $message['body'] = token_replace($message['body'], 'ms_membership_plan', $vars->m_plan);
+  
+  // Replace the Order Tokens
+  $message['subject'] = token_replace($message['subject'], 'ms_core_order', $vars->order);
+  $message['body'] = token_replace($message['body'], 'ms_core_order', $vars->order);
+  
+  // Replace the Payment Tokens
+  $message['subject'] = token_replace($message['subject'], 'ms_core_payment', $vars->payment);
+  $message['body'] = token_replace($message['body'], 'ms_core_payment', $vars->payment);
+  
+  // Replace the User Tokens
+  $message['subject'] = token_replace($message['subject'], 'user', $vars->account);
+  $message['body'] = token_replace($message['body'], 'user', $vars->account);
+  
+  // Log it?
+  if (variable_get('ms_core_debug_mode', FALSE)) {
+    watchdog('ms_membership', 'Sending an Email to a User. Message: !message', 
+      array('!message' => '<pre>'. print_r($message, TRUE) .'</pre>'));
+  }
+}
+
+// ======================================
+// TOKEN
+// ======================================
+
+/**
+ * Implementation of hook_token_list
+ */
+function ms_membership_token_list($type = 'all') {
+  if ($type == 'ms_membership' || $type == 'all') {
+    $tokens['Membership']['currentPayments'] = t("The current payments made for the membership");
+    $tokens['Membership']['maxPayments'] = t("The max payments scheduled for the membership");
+    $tokens['Membership']['membershipStatus'] = t("The status of the membership");
+    $tokens['Membership']['startDate'] = t("The start date of the membership");
+    $tokens['Membership']['expirationDate'] = t("The expiration date of the membership");
+    $tokens['Membership']['renewLink'] = t("The URL to renew the membership");
+  }
+  
+  if ($type == 'ms_membership_plan' || $type == 'all') {
+    $tokens['Membership Plan']['planName'] = t("The name of the Membership Plan");
+    $tokens['Membership Plan']['planDescription'] = t("The description entered for the Membership Plan");
+    $tokens['Membership Plan']['recurringSchedule'] = t("The recurring schedule text");
+    $tokens['Membership Plan']['changedRoles'] = t("A list of roles that were added and removed");
+  }
+  return $tokens;
+}
+
+/**
+ * Implementation of hook_token_values
+ */
+function ms_membership_token_values($type, $object = NULL, $options = array()) {
+  if ($type == 'ms_membership') {
+    $tokens['currentPayments'] = $object->current_payments;
+    $tokens['maxPayments'] = $object->max_payments;
+    $tokens['membershipStatus'] = ms_membership_get_membership_status_text($object->status);
+    $tokens['startDate'] = date('M d, Y', $object->start_date);
+    $tokens['expirationDate'] = date('M d, Y', $object->expiration);
+    $tokens['renewLink'] = ms_membership_get_renewal_link($object->mpid, $object->mid);
+  }
+  
+  if ($type == 'ms_membership_plan') {
+    $tokens['planName'] = $object->name;
+    $tokens['planDescription'] = $object->description;
+    $tokens['recurringSchedule'] = ms_core_get_recurring_string($object, $object->recurring);
+    $tokens['changedRoles'] = ms_membership_list_roles($object, $object->key);
+  }
+  
+  return $tokens;
+}
+
+function ms_membership_notify_admins($template, $vars) {
+  $emails_raw = trim(str_replace(' ', '', variable_get('ms_membership_notify_emails', '')));
+  $emails = explode(',', $emails_raw);
+  
+  if (is_array($emails)) {
+    $emails = array_filter($emails);
+  }
+  
+  // Add the site mail if no admin emails specified
+  if (!$emails OR empty($emails)) {
+    $emails = array();
+    $emails[] = variable_get('site_mail', '');
+  }
+  
+  switch ($template) {
+    case 'admin_signup':
+      if (variable_get('ms_membership_new_membership_mail_body', '')) {
+        foreach ($emails as $email) {
+          if (trim($email)) {
+            drupal_mail('ms_membership', 'admin_signup', trim($email), language_default(), $vars);
+          }
+        }
+      }
+    break;
+    case 'admin_cancel':
+      if (variable_get('ms_membership_cancelled_membership_mail_body', '')) {
+        foreach ($emails as $email) {
+          if (trim($email)) {
+            drupal_mail('ms_membership', 'admin_cancel', trim($email), language_default(), $vars);
+          }
+        }
+      }
+    break;
+  }
+}
+
+// ======================================
+// MS Hooks
+// ======================================
+
+/**
+ * Implementation of hook_ms_products
+ */
+function ms_membership_ms_products() {
+  $products = array();
+  $plans = ms_membership_get_plans();
+  
+  foreach ($plans as $mpid => $name) {
+    $m_plan = ms_membership_load_membership_plan($mpid);
+    
+    $product = new stdClass();
+    // Add the product variables
+    $product->name = $m_plan->name;
+    $product->module = 'ms_membership';
+    $product->module_title = t('Membership Suite');
+    $product->type = ($m_plan->recurring) ? 'recurring' : 'cart';
+    $product->amount = $m_plan->main_amount;
+    $product->qty = 1;
+    $product->id = $m_plan->mpid;
+    $product->data = $m_plan->data;
+    
+    $products[] = $product;
+  }
+  
+  return $products;
+}
+
+/**
+ * Implementation of hook_ms_order_assign_user
+ */
+function ms_membership_ms_order_assign_user($type, $product, $order, $payment) {
+  if (!$order->data['register_form']['email1']) {
+    switch ($product->module) {
+      case 'ms_membership':
+        // Check if an account should be created
+        switch ($type) {
+          case 'cart':
+          case 'rec_signup':
+            // Log it?
+            if (variable_get('ms_core_debug_mode', FALSE)) {
+              watchdog('ms_membership', 'Assigning a user to an Order: Payment Type: !type<br />Product: !product <br />Payment: !payment', 
+                array(
+                  '!type' => $type,
+                  '!product' => '<pre>'. print_r($product, TRUE) .'</pre>', 
+                  '!payment' => '<pre>'. print_r($payment, TRUE) .'</pre>'));
+            }
+            
+            //Register the User once they have paid
+            $form_state = array();
+            
+            $form_state['values'] = $product->data['form'];
+            
+            //Fix the password for user entered passwords
+            if (!variable_get('user_email_verification', TRUE)) {
+              $form_state['values']['pass'] = array(
+                'pass1' => $product->data['form']['pass'],
+                'pass2' => $product->data['form']['pass'],
+                );
+            }
+            else {
+              $pass = user_password();
+              $form_state['values']['pass'] = array(
+                'pass1' => $pass,
+                'pass2' => $pass,
+                );
+            }
+            
+            $form_state['values']['ps_paid'] = TRUE;
+            // Send the email
+            $form_state['values']['notify'] = TRUE;
+            $form_state['#submit'] = $form_state['values']['ms_membership_submit'];
+            
+            // Load the global $user object that contains the account of the currently logged in user
+            global $user;
+            // Preserve this account in the $temp_user variable so that we can switch back to it after impersonating the privileged user
+            $temp_user = $user;
+            // We must set this to FALSE in case the operation on the following lines fails
+            session_save_session(FALSE);
+            // Switch the currently logged in user to user 1 so that CAPTCHA and other checks are not processed
+            $user = user_load(1);
+            // Execute the Registration Form
+            $error = drupal_execute('user_register', $form_state);
+            // Switch back to the account we saved in the $temp_user variable.
+            $user = $temp_user;
+            // Restore session saving
+            session_save_session(TRUE);
+            // Populate the $account variable with the account created as a result of submitting the user_register form
+            $temp_account = $form_state['user'];
+            $account = user_load($temp_account->uid);
+            
+            //Backup create the user account if first method doesn't work
+            if (!$account->uid) {
+              if (variable_get('ms_core_debug_mode', FALSE)) {
+                watchdog('ms_membership', 'Primary User Creation Method Failed, Using Backup Method', array(), WATCHDOG_WARNING);
+              }
+              $pass = ($form_state['values']['pass']) ? $product->data['form']['pass'] : user_password();
+              $roles = isset($form_state['values']['roles']) ? array_filter($form_state['values']['roles']) : array();
+              
+              $account = user_save('', array_merge($form_state['values'], array(
+                'name' => $product->data['form']['name'],
+                'mail' => $product->data['form']['mail'],
+                'init' => $product->data['form']['mail'],
+                'pass' => $pass,
+                'roles' => $roles,
+                'status' => 1
+                )));
+                
+              $account->password = $pass;
+              
+              //Send the Default Email
+              if (variable_get('ms_core_send_registration_mail', TRUE)) {
+                _user_mail_notify('register_no_approval_required', $account);
+              }
+            }
+            
+            $order->uid = $account->uid;
+            ms_core_order_save($order);
+          break;
+          
+          case 'rec_payment':
+            // Log it?
+            if (variable_get('ms_core_debug_mode', FALSE)) {
+              watchdog('ms_membership', 'Waiting for Signup notification: Payment Type: !type<br />Product: !product <br />Payment: !payment', 
+                array(
+                  '!type' => $type,
+                  '!product' => '<pre>'. print_r($product, TRUE) .'</pre>', 
+                  '!payment' => '<pre>'. print_r($payment, TRUE) .'</pre>'));
+            }
+            for ($counter = 1; $counter <= 10; $counter += 1) {
+              $order = ms_core_order_load($order->oid);
+              if ($order->uid) {
+                break;
+              }
+              sleep(5);
+            }
+          break;
+        }
+      break;
+    }
+  }
+}
+
+/**
+ * Implementation of hook_ms_order_payment
+ */
+function ms_membership_ms_order_payment($type, $product, $order, $payment) {
+  switch ($product->module) {
+    case 'ms_membership':
+      $account = user_load(array('uid' => $order->uid));
+      
+      //Get Membership Plan
+      $m_plan = ms_membership_load_membership_plan($product->id);
+      
+      //Get Roles
+      $roles = user_roles(TRUE);
+      
+      // Handle Refunds
+      if ($type == 'refund' OR $type == 'reversal') {
+        if (variable_get('ms_core_debug_mode', FALSE)) {
+          watchdog('ms_membership', 'Refund Notice received for MS Membership Suite', 
+            array('%username' => $account->name));
+        }
+        
+        // Remove the role if the option is on and if the membership is not recurring
+        if (variable_get('ms_membership_refund_remove', FALSE) AND !$m_plan->recurring) {
+          ms_membership_change_roles($account->uid, $m_plan->expire_grant_roles, $m_plan->expire_remove_roles);
+          if (variable_get('ms_core_debug_mode', FALSE)) {
+            watchdog('ms_membership', 'User %username had the following role changes because of refunded payment: %roles', array('%roles' => ms_membership_list_roles($m_plan), '%username' => $account->name));
+          }
+          
+          // Set the Membership to Inactive
+          $membership = ms_membership_load_membership_order_id($order->oid);
+          ms_membership_change_membership_status($membership->mid, 0);
+        }
+      }
+      else {
+        switch ($type) {
+          case "cart":
+            // Add and remove the roles at the start of the membership
+            ms_membership_change_roles($account->uid, $m_plan->start_grant_roles, $m_plan->start_remove_roles);
+            
+            // Check if the user has purchased the membership before
+            if ($membership = ms_membership_load_membership($product->data['renew_mid'])) {
+              // If Active, increase the Expiration Date by the correct amount
+              if ($membership->status != 0) {
+                $expiration = ms_membership_get_expiration_date($m_plan->mpid, $membership->expiration);
+              }
+              else { // Otherwise, get the expiration date from now if it is already Inactive
+                $expiration = ms_membership_get_expiration_date($m_plan->mpid);
+              }
+              
+              // Update the Membership
+              ms_membership_change_membership_expiration($membership->mid, $expiration);
+              ms_membership_change_membership_status($membership->mid, 3);
+              ms_membership_change_membership_oid($membership->mid, $order->oid);
+              
+              $payment_vars = array(
+                'mid' => $membership->mid,
+              );
+              
+              // Send the extend email
+              drupal_mail('ms_membership', 'extend', $account->mail, user_preferred_language($account), $payment_vars);
+            }
+            else {
+              //Insert into Memberships database
+              $status = 3;
+              $expiration = ms_membership_get_expiration_date($m_plan->mpid);
+              $membership = ms_membership_insert_membership($order->oid, $account->uid, $m_plan->mpid, $expiration, $status, 0, 1, 1);
+              
+              $payment_vars = array(
+                'mid' => $membership->mid,
+              );
+              
+              //send email
+              drupal_mail('ms_membership', 'signup', $account->mail, user_preferred_language($account), $payment_vars);
+              
+              // Send Email to Admin(s)
+              ms_membership_notify_admins('admin_signup', $payment_vars);
+            }
+            
+            // Invoke hook_ms_membership_expiring to let other modules act on a new membership
+            module_invoke_all('ms_membership_signup', $account, $membership, $m_plan);
+          break;
+          
+          case "rec_signup":
+            // Add and remove the roles at the start of the membership
+            ms_membership_change_roles($account->uid, $m_plan->start_grant_roles, $m_plan->start_remove_roles);
+            
+            // Check if the user has purchased the membership before
+            if ($membership = ms_membership_load_membership($product->data['renew_mid'])) {
+              // If Active, increase the Expiration Date by the correct amount
+              if ($membership->status != 0) {
+                $expiration = ms_membership_get_expiration_date($m_plan->mpid, $membership->expiration);
+              }
+              else { // Otherwise, get the expiration date from now if it is already Inactive
+                $expiration = ms_membership_get_expiration_date($m_plan->mpid);
+              }
+              
+              // Update the Membership
+              ms_membership_change_membership_expiration($membership->mid, $expiration);
+              ms_membership_change_membership_status($membership->mid, 1);
+              ms_membership_change_membership_oid($membership->mid, $order->oid);
+            }
+            else {
+              //Insert into Memberships database
+              $status = 1;
+              $expiration = ms_membership_get_expiration_date($m_plan->mpid);
+              $membership = ms_membership_insert_membership($order->oid, $account->uid, $m_plan->mpid, $expiration, $status, 0, 0, $m_plan->total_occurrences);
+            }
+            
+            // Invoke hook_ms_membership_expiring to let other modules act on a new membership
+            module_invoke_all('ms_membership_signup', $account, $membership, $m_plan);
+            
+            $payment_vars = array(
+              'mid' => $membership->mid,
+            );
+            
+            // Send Email to User
+            drupal_mail('ms_membership', 'signup', $account->mail, user_preferred_language($account), $payment_vars);
+            
+            // Send Email to Admin(s)
+            ms_membership_notify_admins('admin_signup', $payment_vars);
+          break;
+          
+          case "rec_payment":
+            // Increment Payments
+            for ($counter = 1; $counter <= 10; $counter += 1) {
+              if ($membership = db_fetch_object(db_query("SELECT * FROM {ms_memberships} WHERE oid=%d AND mpid=%d", $order->oid, $m_plan->mpid))) {
+                ms_membership_increment_payment($order->oid);
+                if ($membership->status == 2 OR $membership->status == 0) {
+                  // Change the membership status to active again
+                  ms_membership_change_membership_status($membership->mid, 1);
+                  
+                  // Add and remove the roles at the start of the membership
+                  ms_membership_change_roles($account->uid, $m_plan->start_grant_roles, $m_plan->start_remove_roles);
+            
+                  // If Active, increase the Expiration Date by the correct amount
+                  if ($membership->status != 0) {
+                    $expiration = ms_membership_get_expiration_date($m_plan->mpid, $membership->expiration);
+                  }
+                  else { // Otherwise, get the expiration date from now if it is already Inactive
+                    $expiration = ms_membership_get_expiration_date($m_plan->mpid);
+                  }
+                  
+                  // Update the Membership
+                  ms_membership_change_membership_expiration($membership->mid, $expiration);
+                }
+                // Invoke hook_ms_membership_expiring to let other modules act on a cancelled membership
+                module_invoke_all('ms_membership_payment', $account, $membership, $m_plan);
+                break;
+              }
+              else {sleep(5);}
+            }
+  
+          break;
+          
+          case "rec_modify":
+            //Get the Membership that is being modified, and remove the roles from that membership
+            $membership = ms_membership_load_membership_order_id($order->oid);
+            $old_plan = ms_membership_load_membership_plan($membership->mpid);
+            
+            // Add and remove the roles for the old membership's expiration
+            ms_membership_change_roles($account->uid, $old_membership->expire_grant_roles, $old_membership->expire_remove_roles);
+            
+            // Update the membership info to the new membership plan
+            $expiration = ms_membership_get_expiration_date($m_plan->mpid);
+            db_query("UPDATE {ms_memberships} SET status=%d, mpid=%d, current_payments=%d, max_payments=%d, start_date=%d, expiration=%d WHERE mid=%d", 
+              1, $m_plan->mpid, 0, $m_plan->total_occurrences, time(), $expiration, $membership->mid);
+            
+            // Add and remove the roles for the membership's start
+            ms_membership_change_roles($account->uid, $m_plan->start_grant_roles, $m_plan->start_remove_roles);
+            
+            $membership = ms_membership_load_membership_order_id($order->oid);
+            
+            $payment_vars = array(
+              'mid' => $membership->mid,
+            );
+            
+            //Set Message
+            drupal_set_message(t('Your membership level has been changed to !membership.', array('!membership' => $m_plan->name)));
+            
+            //Send Mail
+            drupal_mail('ms_membership', 'modify', $account->mail, user_preferred_language($account), $payment_vars);
+  
+          break;
+                
+          case "rec_cancel":
+          case "rec_failed":
+            // Change the Status of the Membership to 2
+            $membership = ms_membership_load_membership_order_id($order->oid);
+            ms_membership_change_membership_status($membership->mid, 2);
+            
+            // Calculate the Expiration Date
+            $date = 0;
+            $now = time();
+            
+            // Calculate time based on number of payments multiplied by period length and unit
+            $regular_time = strtotime(ms_core_get_string_time($m_plan->main_length, $m_plan->main_unit), 0);
+            
+            if ($membership->current_payments) {
+              $regular_time = $regular_time * $membership->current_payments;
+            }
+            
+            // Calculate Time for Trial Period 1
+            if ($m_plan->recurring AND $m_plan->trial_unit) {
+              $trial1 = strtotime(ms_core_get_string_time($m_plan->trial_length, $m_plan->trial_unit), 0);
+            }
+            
+            if (($membership->start_date + $trial1) > $now) {
+              $expiration = $membership->start_date + $trial1;
+            }
+            elseif (($membership->start_date + $trial1 + $regular_time) > $now) {
+              $expiration = $membership->start_date + $trial1 + $regular_time;
+            }
+            else {
+              $expiration = $now;
+            }
+            
+            // Set the Expiration Date 
+            db_query("UPDATE {ms_memberships} SET expiration=%d WHERE mid=%d", $expiration, $membership->mid);
+            
+            if ($m_plan->expire_when == 'subscr_cancel') { // Remove the Role at Cancellation
+              if ($account->uid) {
+                ms_membership_change_roles($account->uid, $m_plan->expire_grant_roles, $m_plan->expire_remove_roles);
+              }
+              
+              // Set the Membership to Inactive
+              ms_membership_change_membership_status($membership->mid, 0);
+            }
+            
+            // Invoke hook_ms_membership_expiring to let other modules act on a cancelled membership
+            module_invoke_all('ms_membership_cancel', $account, $membership, $m_plan);
+            
+            $payment_vars = array(
+              'mid' => $membership->mid,
+            );
+            
+            //Set Message and send email
+            drupal_set_message(t('Your membership for the !membership membership level has been cancelled.', array('!membership' => $m_plan->name)));
+            drupal_mail('ms_membership', 'cancel', $account->mail, user_preferred_language($account), $payment_vars);
+            
+            // Send Email to Admin(s)
+            ms_membership_notify_admins('admin_cancel', $payment_vars);
+          break;
+        }
+      }
+    break;
+  }
+}
+
+/**
+ * Implementation of hook_ms_product_load
+ */
+function ms_membership_ms_product_load($module, $id) {
+  if ($module == 'ms_membership') {
+    $m_plan = ms_membership_load_membership_plan($id);
+    
+    if ($m_plan->mpid) {
+      if ($m_plan->recurring) {
+        // Save the order
+        $product->type = 'recurring';
+        
+        // Set the Recurring Schedule Settings
+        $product->recurring_schedule = array(
+          'total_occurrences' => $m_plan->total_occurrences,
+          'main_amount' => $m_plan->main_amount,
+          'main_length' => $m_plan->main_length,
+          'main_unit' => $m_plan->main_unit,
+          'has_trial' => ($m_plan->trial_length) ? TRUE : FALSE,
+          'trial_amount' => $m_plan->trial_amount,
+          'trial_length' => $m_plan->trial_length,
+          'trial_unit' => $m_plan->trial_unit,
+          );
+      }
+      else {
+        $product->type = 'cart';
+      }
+      
+      // Store the Data Overrides
+      $product->data = $m_plan->data;
+      
+      // Add the product variables
+      $product->name = $m_plan->name;
+      $product->module = 'ms_membership';
+      $product->amount = $m_plan->main_amount;
+      $product->id = $m_plan->mpid;
+      
+      return $product;
+    }
+  }
+}
+
+// ======================================
+// FORMS
+// ======================================
+
+function ms_membership_plan_form($form_state, $action, $mpid = NULL) {
+  drupal_add_js(drupal_get_path('module', 'ms_membership') .'/js/ms_membership_form.js', 'module');
+  
+  $is_edit = FALSE;
+  
+  // -----------------------------
+  // Membership Info Settings
+  // -----------------------------
+  $form['membership'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Membership Plan Info'),
+    '#collapsible' => FALSE,
+    '#collapsed' => FALSE,
+  );
+  
+  if ($action == 'edit') {
+    $is_edit = TRUE;
+    $m_plan = ms_membership_load_membership_plan($mpid);
+    // Store the Membership Plan ID
+    $form['membership']['mpid'] = array(
+      '#type' => 'value',
+      '#value' => $m_plan->mpid, 
+    );
+  }
+  if ($action == 'clone') {
+    $is_edit = TRUE;
+    $m_plan = ms_membership_load_membership_plan($mpid);
+    //Unset some fields
+    $m_plan->name = '';
+  }
+  
+  $form['membership']['name'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Membership Plan Name'),
+    '#size' => 32,
+    '#maxlength' => 64,
+    '#description' => t("The Name of this Membership Plan, ex: YourSite.com Premium Membership."),
+    '#default_value' => ($is_edit) ? $m_plan->name : '',
+    '#required' => TRUE,
+  );
+  $form['membership']['description'] = array(
+    '#type' => 'textarea',
+    '#title' => t('Description'),
+    '#description' => t("Enter a short (less than 512 characters) description of the membership plan. Leave this blank for a description to be generated based on the price and recurring settings. If you do add a description, be sure to include the price."),
+    '#required' => FALSE,
+    '#default_value' => ($is_edit) ? $m_plan->description : '',
+  );
+  $form['membership']['main_amount'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Main Amount'),
+    '#size' => 8,
+    '#maxlength' => 10,
+    '#description' => t("How much the user must pay for the Membership each time. Ex: '15.99', '27.95' etc"),
+    '#default_value' => ($is_edit) ? $m_plan->main_amount : '',
+    '#required' => TRUE,
+  );
+  $form['membership']['show_registration'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Show on New User Registration Screen?'),
+    '#return_value' => 1,
+    '#default_value' => ($is_edit) ? $m_plan->show_registration : 0,
+    '#description' => t("Adds this membership plan to the user registration screen, allowing new users to sign up for this membership plan at registration."),
+  );
+  $form['membership']['show_account'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Show in the User Account?'),
+    '#return_value' => 1,
+    '#default_value' => ($is_edit) ? $m_plan->show_account : 0,
+    '#description' => t("Adds this membership plan to the user account screen, allowing users to upgrade their membership."),
+  );
+  
+  // -----------------------------
+  // Roles Settings
+  // -----------------------------
+  $form['roles_settings'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Roles Settings'),
+    '#collapsible' => TRUE,
+    '#collapsed' => FALSE,
+  );
+  $roles = (user_roles(TRUE));
+  unset($roles[DRUPAL_AUTHENTICATED_RID]);
+  $form['roles_settings']['start_grant_roles'] = array(
+    '#type' => 'checkboxes',
+    '#title' => t('Role(s) to Grant at Start'),
+    '#description' => t("Role(s) to be assigned when the Membership starts."),
+    '#options' => $roles,
+    '#default_value' => ($is_edit) ? $m_plan->start_grant_roles : array(),
+  );
+  $form['roles_settings']['expire_remove_roles'] = array(
+    '#type' => 'checkboxes',
+    '#title' => t('Role(s) to Remove at Expiration'),
+    '#description' => t("Role(s) to be removed when the Membership expires."),
+    '#options' => $roles,
+    '#default_value' => ($is_edit) ? $m_plan->expire_remove_roles : array(),
+  );
+  $form['roles_settings']['advanced_roles'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Advanced Roles Settings'),
+    '#collapsible' => TRUE,
+    '#collapsed' => TRUE,
+  );
+  $form['roles_settings']['advanced_roles']['start_remove_roles'] = array(
+    '#type' => 'checkboxes',
+    '#title' => t('Role(s) to Remove at Start'),
+    '#description' => t("Role(s) to be removed when the Membership starts."),
+    '#options' => $roles,
+    '#default_value' => ($is_edit) ? $m_plan->start_remove_roles : array(),
+  );
+  $form['roles_settings']['advanced_roles']['expire_grant_roles'] = array(
+    '#type' => 'checkboxes',
+    '#title' => t('Role(s) to Grant at Expiration'),
+    '#description' => t("Role(s) to be assigned when the Membership expires."),
+    '#options' => $roles,
+    '#default_value' => ($is_edit) ? $m_plan->expire_grant_roles : array(),
+  );
+  
+  // -----------------------------
+  // Period Settings
+  // -----------------------------
+  $form['period_settings'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Period Settings'),
+    '#collapsible' => TRUE,
+    '#collapsed' => FALSE,
+  );
+  $form['period_settings']['recurring'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Recurring Subscription?'),
+    '#return_value' => 1,
+    '#default_value' => ($is_edit) ? $m_plan->recurring : 0,
+    '#description' => t("Make the Plan a Subscription with more than 1 Payment?"),
+  );
+  
+  // -----------------------------
+  // Expiration Settings
+  // -----------------------------
+  $form['period_settings']['expiration_settings'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Expiration Settings'),
+    '#collapsible' => TRUE,
+    '#collapsed' => FALSE,
+    '#attributes' => array('id' => 'ms_expiration'),
+  );
+  $el_options = range(0, 90);
+  $el_options[0] = 'Never Expire';
+  $form['period_settings']['expiration_settings']['expire_length'] = array(
+    '#type' => 'select',
+    '#title' => t('Membership Length'),
+    '#options' => $el_options,
+    '#default_value' => ($is_edit) ? $m_plan->main_length : 0,
+    '#description' => t("How many units (below) before expiration. 
+      If set to never expire, the user will pay 1 time for a lifetime membership."),
+    '#required' => FALSE,
+  );
+  $form['period_settings']['expiration_settings']['expire_unit'] = array(
+    '#type' => 'select',
+    '#title' => t('Unit'),
+    '#options' => array(
+      'D' => t('Days'),
+      'W' => t('Weeks'),
+      'M' => t('Months'),
+      'Y' => t('Years'),
+       ),
+    '#description' => t("What unit to use for the membership length"),
+    '#default_value' => ($is_edit) ? $m_plan->main_unit : 'M',
+    '#required' => FALSE,
+  );
+  
+  // -----------------------------
+  // Recurring Settings
+  // -----------------------------
+  $form['period_settings']['recurring_settings'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Recurring Settings'),
+    '#collapsible' => TRUE,
+    '#collapsed' => FALSE,
+    '#attributes' => array('id' => 'ms_recurring'),
+  );
+  $tc_options = range(0, 90);
+  $tc_options[0] = 'Recur Until Canceled';
+  unset($tc_options[1]);
+  $form['period_settings']['recurring_settings']['total_occurrences'] = array(
+    '#type' => 'select',
+    '#title' => t('Number of Periods Until Expiration'),
+    '#description' => t("How many times to bill the user when using Recurring Subscriptions."),
+    '#required' => FALSE,
+    '#options' => $tc_options,
+    '#default_value' => ($is_edit) ? $m_plan->total_occurrences : 0,
+  );
+  $ml_options = range(0, 90);
+  unset($ml_options[0]);
+  $form['period_settings']['recurring_settings']['main_length'] = array(
+    '#type' => 'select',
+    '#title' => t('Period Length'),
+    '#options' => $ml_options,
+    '#description' => t("How many units (below) for each period."),
+    '#default_value' => ($is_edit) ? $m_plan->main_length : 0,
+    '#required' => FALSE,
+  );
+  $form['period_settings']['recurring_settings']['main_unit'] = array(
+    '#type' => 'select',
+    '#title' => t('Period Unit'),
+    '#options' => array(
+      'D' => t('Days'),
+      'W' => t('Weeks'),
+      'M' => t('Months'),
+      'Y' => t('Years'),
+       ),
+    '#description' => t("What unit to use for the periods"),
+    '#default_value' => ($is_edit) ? $m_plan->main_unit : 'M',
+    '#required' => FALSE,
+  );
+  
+  // -----------------------------
+  // Trial Period Settings
+  // -----------------------------
+  $form['period_settings']['recurring_settings']['trial'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Trial Period Settings (Optional)'),
+    '#collapsible' => TRUE,
+    '#weight' => 50,
+    '#collapsed' => ($is_edit AND $m_plan->trial_length) ? FALSE : TRUE,
+    '#attributes' => array('id' => 'ms_trial'),
+  );
+  $tl_options = range(0, 90);
+  $tl_options[0] = 'No Trial Period';
+  $form['period_settings']['recurring_settings']['trial']['trial_length'] = array(
+    '#type' => 'select',
+    '#title' => t('Trial Period Length'),
+    '#options' => $tl_options,
+    '#description' => t("The number of units for the Trial Period. 
+      If No Trial Period is set, the Trial Period will not be used."),
+    '#required' => FALSE,
+    '#default_value' => ($is_edit) ? $m_plan->trial_length : 0,
+  );
+  $form['period_settings']['recurring_settings']['trial']['trial_unit'] = array(
+    '#type' => 'select',
+    '#title' => t('Trial Period Unit'),
+    '#options' => array(
+      'D' => t('Days'),
+      'W' => t('Weeks'),
+      'M' => t('Months'),
+      'Y' => t('Years'),
+       ),
+    '#description' => t("The unit for the Trial Period."),
+    '#default_value' => ($is_edit) ? $m_plan->trial_unit : 'D',
+    '#required' => FALSE,
+  );
+  $form['period_settings']['recurring_settings']['trial']['trial_amount'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Trial Amount'),
+    '#size' => 8,
+    '#maxlength' => 10,
+    '#description' => t("The Amount Charged for the Trial Period. Ex: '5.99', '7.95' etc. Put 0 for a free trial."),
+    '#required' => FALSE,
+    '#default_value' => ($is_edit) ? $m_plan->trial_amount : '',
+  );
+  
+  // -----------------------------
+  // Modify Settings
+  // -----------------------------
+  $form['modify'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Modification Settings'),
+    '#collapsible' => TRUE,
+    '#collapsed' => TRUE,
+  );
+  $form['modify']['modify_options'] = array(
+    '#type' => 'checkboxes',
+    '#title' => t('Modify Options'),
+    '#description' => t("Select which plans will be offered as a modification option from this plan. Note that only Recurring Memberships can be specified as modification options."),
+    '#default_value' => ($is_edit) ? $m_plan->modify_options : array(),
+    '#options' => ms_memebrship_get_modify_options_plan_list($mpid),
+  );
+  
+  // -----------------------------
+  // Advanced Settings
+  // -----------------------------
+  $form['advanced'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Advanced Settings'),
+    '#collapsible' => TRUE,
+    '#collapsed' => TRUE,
+  );
+  $form['advanced']['expire_when'] = array(
+    '#type' => 'select',
+    '#title' => t('When to Expire the Membership?'),
+    '#options' => array(
+      '' => t('Never'),
+      'subscr_eot' => t('End of Term'),
+      'subscr_cancel' => t('Upon Cancellation'),
+       ),
+    '#description' => t("When, if ever, should the membership be expired."),
+    '#default_value' => ($is_edit) ? $m_plan->expire_when : 'subscr_eot',
+    '#required' => FALSE,
+  );
+  $roles2 = (user_roles(FALSE));
+  $form['advanced']['allow_roles'] = array(
+    '#type' => 'checkboxes',
+    '#title' => t('Allow Roles'),
+    '#description' => t("Which roles will be allowed to purchase or upgrade to this membership plan? WARNING: This is an advanced setting for a reason, so only use it if you know you need it. If you select any roles and do not select the 'anonymous user' role, then this plan WILL NOT show up on the registration page (because anonymous users won't have access to purchase it)."),
+    '#default_value' => ($is_edit) ? $m_plan->allow_roles : array(),
+    '#options' => $roles2,
+  );
+  $form['advanced']['register_urls'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Special Registration URLs'),
+    '#description' => t("To use, enter a comma separated list of URLs that the membership plan should be shown on besides the regular one. 
+      For example, if I wanted this membership plan to show on the 'user/register/promotion' and the 'user/register/package' pages, I would enter
+      'promotion,package'"),
+    '#required' => FALSE,
+    '#default_value' => ($is_edit) ? $m_plan->register_urls : '',
+  );
+  
+  // -----------------------------
+  // Email Settings
+  // -----------------------------
+  $form['email'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Email Settings'),
+    '#collapsible' => TRUE,
+    '#collapsed' => TRUE,
+  );
+  $form['email']['signup_mail_subject'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Signup Email Subject'),
+    '#required' => FALSE,
+    '#default_value' => ($is_edit) ? $m_plan->signup_mail_subject : t("Thank you for Signing Up!"),
+  );
+  $form['email']['signup_mail_body'] = array(
+    '#type' => 'textarea',
+    '#title' => t('Signup Email Body'),
+    '#description' => t("Leave blank to not send an email."),
+    '#required' => FALSE,
+    '#default_value' => ($is_edit) ? $m_plan->signup_mail_body : t("Dear [customerName],
+You have purchased the [planName] membership for [paymentAmount] on [site-date], and your account access has been upgraded. Thank you!
+
+Sincerely,
+[site-name]
+[site-url]"),
+  );
+  $form['email']['ms_membership_signup_mail_token_help'] = array(
+    '#title' => t('Replacement patterns'),
+    '#type' => 'fieldset',
+    '#collapsible' => TRUE,
+    '#collapsed' => TRUE,
+    );
+
+  $form['email']['ms_membership_signup_mail_token_help']['help'] = array(
+    '#value' => theme('token_help', array('ms_membership', 'ms_membership_plan', 'ms_core_order', 'ms_core_payment', 'user')),
+    );
+  $form['email']['expiring_mail_subject'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Expiring Soon Email Subject'),
+    '#required' => FALSE,
+    '#default_value' => ($is_edit) ? $m_plan->expiring_mail_subject : t("Your Membership is Expiring Soon!"),
+  );
+  $form['email']['expiring_mail_body'] = array(
+    '#type' => 'textarea',
+    '#title' => t('Expiring Soon Email Body'),
+    '#description' => t("Leave blank to not send an email."),
+    '#required' => FALSE,
+    '#default_value' => ($is_edit) ? $m_plan->expiring_mail_body : t("Dear [customerName],
+Your [planName] membership will expire on [expirationDate]. To renew your membership, click the following link: [renewLink]
+
+Sincerely,
+[site-name]
+[site-url]"),
+  );
+  $days_array = range(0, 90);
+  $form['email']['expiring_mail_days'] = array(
+    '#type' => 'select',
+    '#title' => t('When to Send Expiring Soon Email?'),
+    '#description' => t("How many days before the plan expires should the Expiring Soon email be sent? Setting this to 0 will disable it."),
+    '#options' => $days_array,
+    '#required' => FALSE,
+    '#default_value' => ($is_edit) ? $m_plan->expiring_mail_days : 0,
+  );
+  $form['email']['ms_membership_expiring_mail_token_help'] = array(
+    '#title' => t('Replacement patterns'),
+    '#type' => 'fieldset',
+    '#collapsible' => TRUE,
+    '#collapsed' => TRUE,
+    );
+
+  $form['email']['ms_membership_expiring_mail_token_help']['help'] = array(
+    '#value' => theme('token_help', array('ms_membership', 'ms_membership_plan', 'ms_core_order', 'ms_core_payment', 'user')),
+    );
+  $form['email']['eot_mail_subject'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Expiration Email Subject'),
+    '#required' => FALSE,
+    '#default_value' => ($is_edit) ? $m_plan->eot_mail_subject : t("Your Membership has ended"),
+  );
+  $form['email']['eot_mail_body'] = array(
+    '#type' => 'textarea',
+    '#title' => t('Expiration Email Body'),
+    '#description' => t("Leave blank to not send an email."),
+    '#required' => FALSE,
+    '#default_value' => ($is_edit) ? $m_plan->eot_mail_body : t("Dear [customerName],
+Your [planName] membership has expired or been cancelled. The following changes have been made to your account:
+[changedRoles]
+
+To renew your membership, please click the following link: [renewLink]
+
+Sincerely,
+[site-name]
+[site-url]"),
+  );
+  $form['email']['ms_membership_eot_mail_token_help'] = array(
+    '#title' => t('Replacement patterns'),
+    '#type' => 'fieldset',
+    '#collapsible' => TRUE,
+    '#collapsed' => TRUE,
+    );
+
+  $form['email']['ms_membership_eot_mail_token_help']['help'] = array(
+    '#value' => theme('token_help', array('ms_membership', 'ms_membership_plan', 'ms_core_order', 'ms_core_payment', 'user')),
+    );
+  $form['email']['cancel_mail_subject'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Membership Cancellation Email Subject'),
+    '#default_value' => ($is_edit) ? $m_plan->cancel_mail_subject : t('Membership Cancelled'),
+    '#required' => FALSE
+  );
+  $form['email']['cancel_mail_body'] = array(
+    '#type' => 'textarea',
+    '#title' => t('Membership Cancellation Email Body'),
+    '#default_value' => ($is_edit) ? $m_plan->cancel_mail_body : t("Dear [customerName],
+Your [planName] membership has been cancelled and will not automatically renew anymore. Access will be removed at the end of the term.
+
+Sincerely,
+[site-name]
+[site-url]"),
+    '#description' => t("Leave blank to not send an email."),
+    '#required' => FALSE
+  );
+  $form['email']['ms_membership_cancel_mail_token_help'] = array(
+    '#title' => t('Replacement patterns'),
+    '#type' => 'fieldset',
+    '#collapsible' => TRUE,
+    '#collapsed' => TRUE,
+    );
+
+  $form['email']['ms_membership_cancel_mail_token_help']['help'] = array(
+    '#value' => theme('token_help', array('ms_membership', 'ms_membership_plan', 'ms_core_order', 'ms_core_payment', 'user')),
+    );
+  $form['email']['modify_mail_subject'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Membership Extension/Modification Email Subject'),
+    '#default_value' => ($is_edit) ? $m_plan->modify_mail_subject : t("Thank You!"),
+    '#required' => FALSE
+  );
+  $form['email']['modify_mail_body'] = array(
+    '#type' => 'textarea',
+    '#title' => t('Membership Extension/Modification Email Body'),
+    '#default_value' => ($is_edit) ? $m_plan->modify_mail_body : t("Dear [customerName],
+Your membership has been successfully extended.
+
+Sincerely,
+[site-name]
+[site-url]"),
+    '#description' => t("This email will be sent when a user extends or modifies their membership. Recurring Memberships can only be modified, and Non-Recurring memberships can only be extended. Leave blank to not send an email."),
+    '#required' => FALSE
+  );
+  $form['email']['ms_membership_modify_mail_token_help'] = array(
+    '#title' => t('Replacement patterns'),
+    '#type' => 'fieldset',
+    '#collapsible' => TRUE,
+    '#collapsed' => TRUE,
+    );
+
+  $form['email']['ms_membership_modify_mail_token_help']['help'] = array(
+    '#value' => theme('token_help', array('ms_membership', 'ms_membership_plan', 'ms_core_order', 'ms_core_payment', 'user')),
+    );
+  
+  // -----------------------------
+  // Product Override Settings
+  // -----------------------------
+  $form['override_settings'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Product Override Settings'),
+    '#tree' => TRUE,
+    '#collapsible' => TRUE,
+    '#collapsed' => TRUE,
+  );
+  
+  $override_data = ($is_edit) ? $m_plan->data['override_settings'] : $form_state;
+  $override_settings = ms_core_get_override_settings_forms($override_data);
+  
+  $form['override_settings'][] = $override_settings;
+  
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Save'),
+  );
+  $form['#redirect'] = 'admin/build/ms_membership';
+  
+  return $form;
+}
+
+function ms_membership_plan_form_validate($form, &$form_state) {
+  $v = $form_state['values'];
+  //Validate Trial Fee
+  if ($v['trial_amount'] && !is_numeric($v['trial_amount'])) {
+    form_set_error('trial_amount', t('You must use a number for the Trial Amount.'));
+  }
+  elseif ($v['trial_amount'] && $v['trial_amount'] < 0) {
+    form_set_error('trial_amount', t('The Trial Amount must be positive.'));
+  }
+  //Validate Regular Fee
+  if ($v['main_amount'] && !is_numeric($v['main_amount'])) {
+    form_set_error('main_amount', t('You must use a number for the Main Amount.'));
+  }
+  elseif ($v['main_amount'] && $v['main_amount'] < 0) {
+    form_set_error('main_amount', t('The Main Amount must be positive.'));
+  }
+  if (($v['main_amount'] == 0 OR $v['main_amount'] == 0.00) AND $v['recurring']) {
+    form_set_error('recurring', t('Free Memberships cannot be recurring'));
+  }
+}
+
+/**
+ * Submit Function for the Add Membership Form
+ */
+function ms_membership_plan_form_submit($form, &$form_state) {
+  $form_values = (object) $form_state['values'];
+  
+  if ($form_values->mpid) {
+    $m_plan = ms_membership_load_membership_plan($form_values->mpid);
+  }
+  else {
+    $m_plan = new stdClass();
+  }
+  
+  // Set the values
+  $m_plan->name = $form_values->name;
+  $m_plan->description = $form_values->description;
+  $m_plan->trial_length = $form_values->trial_length;
+  $m_plan->trial_unit = $form_values->trial_unit;
+  $m_plan->recurring = $form_values->recurring;
+  $m_plan->expiring_mail_days = $form_values->expiring_mail_days;
+  $m_plan->weight = $form_values->weight;
+  $m_plan->register_urls = $form_values->register_urls;
+  $m_plan->expire_when = $form_values->expire_when;
+  $m_plan->show_registration = $form_values->show_registration;
+  $m_plan->show_account = $form_values->show_account;
+  $m_plan->allow_roles = $form_values->allow_roles;
+  $m_plan->modify_options = $form_values->modify_options;
+  $m_plan->start_grant_roles = $form_values->start_grant_roles;
+  $m_plan->start_remove_roles = $form_values->start_remove_roles;
+  $m_plan->expire_grant_roles = $form_values->expire_grant_roles;
+  $m_plan->expire_remove_roles = $form_values->expire_remove_roles;
+  $m_plan->data['override_settings'] = $form_values->override_settings[0];
+  
+  // Encode the Emails
+  $m_plan->signup_mail_subject = htmlspecialchars($form_values->signup_mail_subject);
+  $m_plan->signup_mail_body = htmlspecialchars($form_values->signup_mail_body);
+  $m_plan->expiring_mail_subject = htmlspecialchars($form_values->expiring_mail_subject);
+  $m_plan->expiring_mail_body = htmlspecialchars($form_values->expiring_mail_body);
+  $m_plan->eot_mail_subject = htmlspecialchars($form_values->eot_mail_subject);
+  $m_plan->eot_mail_body = htmlspecialchars($form_values->eot_mail_body);
+  $m_plan->cancel_mail_subject = htmlspecialchars($form_values->cancel_mail_subject);
+  $m_plan->cancel_mail_body = htmlspecialchars($form_values->cancel_mail_body);
+  $m_plan->modify_mail_subject = htmlspecialchars($form_values->modify_mail_subject);
+  $m_plan->modify_mail_body = htmlspecialchars($form_values->modify_mail_body);
+  
+  // Set the default amounts if none entered
+  $m_plan->main_amount = ($form_values->main_amount) ? $form_values->main_amount : 0;
+  $m_plan->trial_amount = ($form_values->trial_amount) ? $form_values->trial_amount : 0;
+  
+  // Set the correct settings based on if the plan is recurring or not
+  $m_plan->main_length = ($form_values->recurring) ? $form_values->main_length : $form_values->expire_length;
+  $m_plan->main_unit = ($form_values->recurring) ? $form_values->main_unit : $form_values->expire_unit;
+  $m_plan->total_occurrences = ($form_values->recurring) ? $form_values->total_occurrences : 1;
+  
+  if ($form_values->mpid) {
+    $m_plan->mpid = $form_values->mpid;
+    drupal_write_record('ms_membership_plans', $m_plan, 'mpid');
+  }
+  else {
+    drupal_write_record('ms_membership_plans', $m_plan);
+  }
+  
+  drupal_set_message(t('Membership Plan Saved: %sname.', array('%sname' => $m_plan->name)));
+}
+
+// ======================================
+// Memberships
+// ======================================
+
+function ms_membership_membership_add_form($form_state) {
+  $form['membership'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('New Membership'),
+    '#weight' => -49,
+    '#collapsible' => FALSE,
+    '#collapsed' => FALSE,
+  );
+  $form['membership']['username'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Username'),
+    '#size' => 32,
+    '#maxlength' => 64,
+    '#description' => t("The Name of the User for this Membership"),
+    '#autocomplete_path' => 'admin/build/ms_core/autocomplete',
+    '#required' => TRUE,
+  );
+  $m_plans = ms_membership_get_plans();
+  $form['membership']['mpid'] = array(
+    '#type' => 'select',
+    '#title' => 'Membership Plans',
+    '#options' => $m_plans,
+    '#description' => t("The Membership Plan to use as a template"),
+    '#required' => TRUE,
+  );
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Save'),
+  );
+  $form['#redirect'] = 'admin/user/ms_memberships';
+  return $form;
+}
+
+/**
+ * Validate Function for the Add Membership Form
+ */
+function ms_membership_membership_add_form_validate($form, &$form_state) {
+  $v = $form_state['values'];
+  $account = user_load(array('name' => $v['username']));
+  if (!$account->uid) {
+    form_set_error('username', t('You must enter a valid user'));
+  }
+}
+
+/**
+ * Submit Function for the Add Membership Form
+ */
+function ms_membership_membership_add_form_submit($form, &$form_state) {
+  $v = $form_state['values'];
+  $account = user_load(array('name' => $v['username']));
+  $m_plan = ms_membership_load_membership_plan($v['mpid']);
+  
+  // Add a new membership for this user
+  $membership = ms_membership_insert_new_membership($m_plan, $account);
+  
+  drupal_set_message(t('Membership Added for user: %name.', array('%name' => $account->name)));
+  
+  if (variable_get('ms_core_debug_mode', FALSE)) {
+    watchdog('ms_membership', 'Membership Plan %membership manually added for user %username', array('%membership' => $m_plan->name, '%username' => $account->name));
+  }
+}
+
+function ms_membership_membership_edit_form($form_state, $mid) {
+  drupal_add_js(drupal_get_path('module', 'ms_membership') .'/js/ms_membership_edit_form.js', 'module');
+  $membership = ms_membership_load_membership($mid);
+  $form['membership'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Membership Settings'),
+    '#weight' => -50,
+    '#collapsible' => FALSE,
+    '#collapsed' => FALSE,
+  );
+  $form['membership']['mid'] = array(
+    '#type' => 'value',
+    '#value' => $membership->mid, 
+  );
+  $form['membership']['current_payments'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Payments'),
+    '#size' => 8,
+    '#maxlength' => 10,
+    '#description' => t("How many payments have been made?"),
+    '#required' => FALSE,
+    '#default_value' => $membership->current_payments, 
+  );
+  $form['membership']['max_payments'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Max Payments'),
+    '#size' => 8,
+    '#maxlength' => 10,
+    '#description' => t("How many payments are expected?"),
+    '#required' => FALSE,
+    '#default_value' => $membership->max_payments, 
+  );
+  $form['membership']['start_date'] = array(
+    '#type' => 'date',
+    '#title' => t('Start Date'),
+    '#description' => t("When was this Membership created?"),
+    '#required' => TRUE,
+    '#default_value' => array(
+      'year' => date('Y', $membership->start_date),
+      'month' => date('n', $membership->start_date),
+      'day' => date('j', $membership->start_date),
+      ),
+  );
+  $form['membership']['should_expire'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Expiration?'),
+    '#description' => t("Check this to set an expiration date for the membership. Leaving this unchecked will cause the membership to never expire."),
+    '#required' => FALSE,
+    '#default_value' => ($membership->expiration ? TRUE : FALSE), 
+  );
+  $form['membership']['expiration'] = array(
+    '#type' => 'date',
+    '#title' => t('Expiration Date'),
+    '#description' => t("When does this Membership Expire?"),
+    '#default_value' => array(
+      'year' => (($membership->expiration) ? date('Y', $membership->expiration) : date('Y', time())),
+      'month' => (($membership->expiration) ? date('n', $membership->expiration) : date('n', time())),
+      'day' => (($membership->expiration) ? date('j', $membership->expiration) : date('j', time())),
+      ),
+  );
+  $form['membership']['status'] = array(
+    '#type' => 'select',
+    '#title' => t('Status'),
+    '#options' => ms_membership_get_membership_statuses(),
+    '#description' => t("What is the Status of the Membership?"),
+    '#required' => FALSE,
+    '#default_value' => $membership->status, 
+  );
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Save'),
+  );
+  $form['#redirect'] = 'admin/user/ms_memberships';
+  return $form;
+}
+
+/**
+ * Validate Function for the Edit Membership Form
+ */
+function ms_membership_membership_edit_form_validate($form, &$form_state) {
+  $v = $form_state['values'];
+}
+
+/**
+ * Submit Function for the Edit Membership Form
+ */
+function ms_membership_membership_edit_form_submit($form, &$form_state) {
+  $v = $form_state['values'];
+  $membership = ms_membership_load_membership($v['mid']);
+  $membership->current_payments = $v['current_payments'];
+  $membership->max_payments = $v['max_payments'];
+  $membership->status = $v['status'];
+  $membership->start_date = strtotime($v['start_date']['year'] .'-'. $v['start_date']['month'] .'-'. $v['start_date']['day']);
+  if (!$v['should_expire']) {
+    $membership->expiration = 0;
+  }
+  else {
+    $membership->expiration = strtotime($v['expiration']['year'] .'-'. $v['expiration']['month'] .'-'. $v['expiration']['day']);
+  }
+  drupal_write_record('ms_memberships', $membership, 'mid');
+  drupal_set_message(t('Membership Saved.'));
+  
+  // Remove the Role if the Membership was set to inactive
+  if ($membership->status == 0) {
+    $m_plan = ms_membership_load_membership_plan($membership->mpid);
+    ms_membership_change_roles($membership->uid, $m_plan->expire_grant_roles, $m_plan->expire_remove_roles);
+  }
+}
+
+/*
+ * Build the form when adding or editing users manually
+ */
+function ms_membership_fetch_user_admin_form(&$form) {
+  $form['ms_membership'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Add New Membership'),
+    '#collapsible' => TRUE,
+    '#collapsed' => TRUE,
+  );
+  $form['ms_membership']['ms_membership_add_new'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Add New Membership for this User?'),
+    '#size' => 32,
+    '#maxlength' => 64,
+    '#required' => FALSE,
+  );
+  $m_plans = ms_membership_get_plans();
+  $form['ms_membership']['ms_membership_mpid'] = array(
+    '#type' => 'select',
+    '#title' => 'Membership Plans',
+    '#options' => $m_plans,
+    '#description' => t("Select the Membership Plan"),
+    '#required' => FALSE,
+  );
+  $form['ms_membership']['ms_membership_amount_paid'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Amount Paid'),
+    '#size' => 8,
+    '#maxlength' => 10,
+    '#description' => t("How much has been paid?"),
+    '#required' => FALSE,
+  );
+  $form['ms_membership']['ms_membership_transaction_number'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Transaction #'),
+    '#size' => 8,
+    '#maxlength' => 10,
+    '#description' => t("Enter a transaction number to associate with this order"),
+    '#required' => FALSE,
+  );
+  $form['ms_membership']['ms_membership_current_payments'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Payments'),
+    '#size' => 8,
+    '#maxlength' => 10,
+    '#description' => t("How many payments have been made?"),
+    '#required' => FALSE,
+    '#default_value' => 1, 
+  );
+  $form['ms_membership']['ms_membership_max_payments'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Max Payments'),
+    '#size' => 8,
+    '#maxlength' => 10,
+    '#description' => t("How many payments are expected? Leave blank to use the plan's default."),
+    '#required' => FALSE,
+  );
+  $today = time();
+  $form['ms_membership']['ms_membership_start_date'] = array(
+    '#type' => 'date',
+    '#title' => t('Start Date'),
+    '#description' => t("When was this Membership created?"),
+    '#required' => FALSE,
+    '#default_value' => array(
+      'year' => date('Y', $today),
+      'month' => date('n', $today),
+      'day' => date('j', $today),
+      ),
+  );
+  $form['ms_membership']['ms_membership_should_expire'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Expiration?'),
+    '#description' => t("Check this to set an expiration date for the membership. Leaving this unchecked will cause the membership to never expire."),
+    '#required' => FALSE,
+    '#default_value' => FALSE,
+  );
+  $form['ms_membership']['ms_membership_expiration'] = array(
+    '#type' => 'date',
+    '#title' => t('Expiration Date'),
+    '#description' => t("When does this Membership Expire?"),
+    '#default_value' => array(
+      'year' => date('Y', $today),
+      'month' => date('n', $today),
+      'day' => date('j', $today),
+      ),
+  );
+  $form['ms_membership']['ms_membership_status'] = array(
+    '#type' => 'select',
+    '#title' => t('Status'),
+    '#options' => ms_membership_get_membership_statuses(),
+    '#description' => t("What is the Status of the Membership?"),
+    '#required' => FALSE,
+    '#default_value' => 3,
+  );
+  $form['#submit'][] = 'ms_membership_user_admin_form_submit';
+}
+
+/**
+ * Submit Function for the Admin Edit User form
+ */
+function ms_membership_user_admin_form_submit($form, &$form_state) {
+  $v = $form_state['values'];
+  if ($v['ms_membership_add_new']) {
+    if ($v['name']) {
+      $account = user_load(array('name' => $v['name']));
+    }
+    else if (arg(0) == 'user') {
+      $account = user_load(arg(1));
+    }
+    
+    $order = ms_core_order_new('cart', $account->uid);
+    
+    $m_plan = ms_membership_load_membership_plan($v['ms_membership_mpid']);
+  
+    if ($m_plan->mpid) {
+      $product = new stdClass();
+      
+      // Add the product variables
+      $product->name = $m_plan->name;
+      $product->module = 'ms_membership';
+      $product->type = 'cart';
+      $product->amount = $v['ms_membership_amount_paid'];
+      $product->qty = 1;
+      $product->id = $m_plan->mpid;
+      
+      // Store the custom data
+      $product->data = array();
+      
+      $order = ms_core_add_order_product($order, $product, TRUE);
+      $order->full_name = $account->name;
+      
+      ms_core_order_save($order);
+      
+      ms_core_set_order_status($order, 'completed');
+      
+      // Add a payment
+      $result = db_query("INSERT INTO {ms_payments} (oid, type, transaction, data, gateway, amount, currency, created, modified)
+        VALUES (%d, '%s', '%s', '%s', '%s', '%s', '%s', %d, %d)", 
+        $order->oid, 'cart', $v['ms_membership_transaction_number'], serialize($payment->data), 
+        'ms_bank', $v['ms_membership_amount_paid'], variable_get('ms_core_default_currency', 'USD'), time(), time());
+      
+      $current_payments = $v['ms_membership_current_payments'];
+      $max_payments = $v['ms_membership_max_payments'];
+      $status = $v['ms_membership_status'];
+      $start_date = strtotime($v['ms_membership_start_date']['year'] .'-'. $v['ms_membership_start_date']['month'] .'-'. $v['ms_membership_start_date']['day']);
+      if (!$v['ms_membership_should_expire']) {
+        $expiration = 0;
+      }
+      else {
+        $expiration = strtotime($v['ms_membership_expiration']['year'] .'-'. $v['ms_membership_expiration']['month'] .'-'. $v['ms_membership_expiration']['day']);
+      }
+      
+      // Insert a new membership
+      $membership = ms_membership_insert_membership($order->oid, $account->uid, $m_plan->mpid, $expiration, $status, $start_date, $current_payments, $max_payments);
+      
+      // Add the roles
+      ms_membership_change_roles($membership->uid, $m_plan->start_grant_roles, $m_plan->start_remove_roles);
+      
+      // Invoke hook_ms_membership_expiring to let other modules act on a new membership
+      module_invoke_all('ms_membership_signup', $account, $membership, $m_plan);
+      
+      $payment_vars = array(
+        'mid' => $membership->mid,
+      );
+      
+      // Send Email to User
+      drupal_mail('ms_membership', 'signup', $account->mail, user_preferred_language($account), $payment_vars);
+      
+      drupal_set_message(t('%membership membership added for %user.', array('%membership' => $m_plan->name, '%user' => $account->name)));
+    }
+  }
+}
+
+// ======================================
+// LM PayPal Migrate
+// ======================================
+
+/**
+ * Determine whether to show the LM PayPal import
+ */
+function ms_membership_lm_paypal_access() {
+  // Check if the lm_paypal_subscriptions and lm_paypal_subscribers tables exist
+  if (db_table_exists('lm_paypal_subscriptions') AND db_table_exists('lm_paypal_subscribers')) {
+    // Check if the lm_paypal_subscriptions module is disabled
+    if (!module_exists('lm_paypal_subscriptions')) {
+      return TRUE;
+    }
+  }
+  return FALSE;
+}
+
+/**
+ * Show the Migration Page for LM PayPal
+ */
+function ms_membership_migrate_lm_paypal() {
+  // Show a message if the migration has already been done once
+  if (variable_get('ms_membership_migrated_ml_paypal', FALSE)) {
+    drupal_set_message("The migration has already been completed. You shouldn't run this again unless you know what you are doing.");
+  }
+  
+  $output = '<p>'. t("Here you can import the subscription and subscriber records from LM PayPal and have them be converted to Membership Plans and Memberships, respectively.") .'</p>';
+  $output .= '<p>'. t("After you have imported the data, you will still need to go in and double check the plan to make sure everything has been imported correctly, set some new settings, and change the email templates to use the Token values provided by Membership Suite.") .'</p>';
+  
+  $output .= drupal_get_form('ms_membership_migrate_lm_paypal_form');
+  
+  return $output;
+}
+
+/**
+ * Generate the Migrate Button for LM PayPal
+ */
+function ms_membership_migrate_lm_paypal_form(&$form_state) {
+  $form = array();
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Migrate'),
+  );
+  return $form;
+}
+
+/**
+ * Migrate the LM PayPal records to Membership Suite
+ */
+function ms_membership_migrate_lm_paypal_form_submit($form, &$form_state) {
+  // Migrate the Subscriptions from LM PayPal to Membership Plans in Membership Suite
+  // Load all of the membership plans into an array
+  $lm_plans_result = db_query("SELECT * FROM {lm_paypal_subscriptions} ORDER BY subid ASC");
+  $lm_plans = array();
+  
+  while ($lm_plan = db_fetch_object($lm_plans_result)) {
+    // Build the new plan from the old plan
+    $new_plan = new stdClass();
+    
+    $new_plan->name = $lm_plan->item_name;
+    $new_plan->description = $lm_plan->description;
+    $new_plan->trial_amount = $lm_plan->a1;
+    $new_plan->trial_length = $lm_plan->p1;
+    $new_plan->trial_unit = $lm_plan->t1;
+    $new_plan->main_amount = $lm_plan->a3;
+    $new_plan->main_length = $lm_plan->p3;
+    $new_plan->main_unit = $lm_plan->t3;
+    $new_plan->recurring = $lm_plan->src;
+    $new_plan->total_occurrences = $lm_plan->srt;
+    
+    // Set the 'rid' as the default for 'start_grant_roles' and 'expire_remove_roles'
+    $new_plan->start_grant_roles = array($lm_plan->rid => $lm_plan->rid);
+    $new_plan->expire_remove_roles = array($lm_plan->rid => $lm_plan->rid);
+    
+    // Set Emails
+    $new_plan->signup_mail_subject = $lm_plan->send_user_onsub_subject;
+    $new_plan->signup_mail_body = $lm_plan->send_user_onsub_body;
+    $new_plan->eot_mail_subject = $lm_plan->send_user_onend_subject;
+    $new_plan->eot_mail_body = $lm_plan->send_user_onend_body;
+    $new_plan->expiring_mail_subject = $lm_plan->send_user_onnearend_subject;
+    $new_plan->expiring_mail_body = $lm_plan->send_user_onnearend_body;
+    $new_plan->expiring_mail_days = $lm_plan->nearend_days;
+    
+    // Set Defaults
+    $new_plan->weight = 0;
+    $new_plan->data = array();
+    $new_plan->register_urls = '';
+    $new_plan->expire_when = 'subscr_eot';
+    $new_plan->allow_roles = array();
+    $new_plan->modify_options = array();
+    $new_plan->start_remove_roles = array();
+    $new_plan->expire_grant_roles = array();
+    $new_plan->cancel_mail_subject = '';
+    $new_plan->cancel_mail_body = '';
+    $new_plan->modify_mail_subject = '';
+    $new_plan->modify_mail_body = '';
+    $new_plan->show_registration = 1;
+    $new_plan->show_account = 1;
+    
+    // Write the new Membership Plan to the table
+    drupal_write_record('ms_membership_plans', $new_plan);
+    
+    // Keep track of this so we can use it later
+    $plans[$lm_plan->subid] = db_last_insert_id('ms_membership_plans', 'mpid');
+  }
+  
+  // Migrate the Subscribers from LM PayPal to Memberships in Membership Suite
+  // Load all of the memberships into an array
+  $lm_sub_result = db_query("SELECT * FROM {lm_paypal_subscribers} ORDER BY usid ASC");
+  $mem_count = 0;
+  
+  while ($lm_mem = db_fetch_object($lm_sub_result)) {
+    // Clear the old values
+    $oid = $m_plan = $old_payment = $order = $order_type = $old_payment = $new_payment = NULL;
+    
+    // Load some variables
+    $m_plan = ms_membership_load_membership_plan($plans[$lm_mem->subid]);
+    $account = user_load(array('uid' => $lm_mem->uid));
+    
+    // Create a new Order for this membership
+    $order_type = ($m_plan->recurring) ? 'recurring' : 'cart';
+    
+    $order = ms_core_order_new($order_type, $account->uid);
+    
+    $order->status = ($lm_mem->status) ? 'active' : 'completed';
+    $order->created = $lm_mem->started;
+    
+    // Set the order as not secured
+    $order->secured = FALSE;
+    
+    ms_core_order_save($order);
+    
+    $product = new stdClass();
+    
+    // Add the product variables
+    $product->recurring_schedule = $m_plan->recurring_schedule;
+    $product->type = $order_type;
+    $product->name = $m_plan->name;
+    $product->module = 'ms_membership';
+    $product->amount = $m_plan->main_amount;
+    $product->id = $m_plan->mpid;
+    
+    $order = ms_core_add_order_product($order, $product, TRUE);
+    
+    // Build the new membership from the old membership
+    $new_mem = new stdClass();
+    
+    // Transfer the settings
+    $new_mem->uid = $lm_mem->uid;
+    $new_mem->mpid = $m_plan->mpid;
+    $new_mem->status = $lm_mem->status;
+    $new_mem->start_date = $lm_mem->started;
+    $new_mem->current_payments = 0;
+    
+    // Calculate these based on the membership plan
+    $new_mem->expiration = ms_membership_get_expiration_date($m_plan->mpid, $lm_mem->started);
+    $new_mem->max_payments = $m_plan->total_occurrences;
+    
+    // Set the order id
+    $new_mem->oid = $order->oid;
+    
+    drupal_write_record('ms_memberships', $new_mem);
+    $mem_count += 1;
+  }
+  
+  drupal_set_message(t('Successfully Imported %plans Membership Plans and %mems Memberships',
+    array('%plans' => count($plans), '%mems' => $mem_count)));
+  
+  // Set the variable that the migration has been completed
+  variable_set('ms_membership_migrated_ml_paypal', TRUE);
+}
+
+// ======================================
+// VIEWS
+// ======================================
+
+/**
+ * Implementation of hook_views_api().
+ */
+function ms_membership_views_api() {
+  return array(
+    'api' => '2.0',
+    'path' => drupal_get_path('module', 'ms_membership') .'/views',
+  );
+}
+
+/**
+ * Implementation of hook_views_handlers().
+ */
+function ms_membership_views_handlers() {
+  return array(
+    'info' => array(
+      'path' => drupal_get_path('module', 'ms_membership') .'/views',
+    ),
+    'handlers' => array(
+      'ms_membership_roles_handler' => array(
+        'parent' => 'views_handler_field',
+        ),
+      'ms_membership_status_handler' => array(
+        'parent' => 'views_handler_field',
+        ),
+    ),
+  );
+}
+
+/**
+ * Implementation of hook_date_api_fields().
+ */
+function ms_membership_date_api_fields($field) {
+  $values = array(
+    // The type of date: DATE_UNIX, DATE_ISO, DATE_DATETIME.
+    'sql_type' => DATE_UNIX,
+    // Timezone handling options: 'none', 'site', 'date', 'utc'.
+    'tz_handling' => 'site',
+    // Needed only for dates that use 'date' tz_handling.
+    'timezone_field' => '',
+    // Needed only for dates that use 'date' tz_handling.
+    'offset_field' => '',
+    // Array of "table.field" values for related fields that should be
+    // loaded automatically in the Views SQL.
+    'related_fields' => array(),
+    // Granularity of this date field's db data.
+    'granularity' => array('year', 'month', 'day', 'hour', 'minute', 'second'),
+  );
+  return $values;
+}
+
+// ======================================
+// USER IMPORT
+// ======================================
+
+/**
+ * Implementation of hook_user_import_form_fieldsets().
+ */
+function ms_membership_user_import_form_fieldset($import, $collapsed) {
+  $form = array();
+  ms_membership_user_import_edit_roles_fields($form, $import, $collapsed);
+
+  return $form;
+}
+
+/**
+ * Implementation of hook_user_import_form_field_match().
+ */
+function ms_membership_user_import_form_field_match() {
+  $options['ms_membership'] = array(
+    'expiration' => t('Expiration Date'),
+    'start_date' => t('Start Date'),
+  );
+  return $options;
+}
+
+/**
+ * Implementation of hook_user_import_data().
+ */  
+function ms_membership_user_import_data($settings, $update_setting, $column_settings, $module, $field_id, $data, $column_id) {
+  if ($module != 'ms_membership') return;
+  
+  if ($field_id == 'expiration') {
+    $value = strtotime(trim($data[$column_id]));
+  }
+  
+  if ($field_id == 'start_date') {
+    $value = strtotime(trim($data[$column_id]));
+  }
+
+  return $value;
+}
+
+function ms_membership_user_import_edit_roles_fields(&$form, $import, $collapsed) { 
+  //drupal_set_message('<pre>'. print_r($import, TRUE) .'</pre>');
+  // memberships selected
+  $plans_selected = array();
+  if ( !empty($import['m_plans']) ) {
+    foreach ($import['m_plans'] as $mpid) {
+      if ($mpid != 0) $plans_selected[] = $mpid;
+    } 
+  }
+  
+  $form['ms_membership'] = array(
+      '#type' => 'fieldset',
+      '#title' => t('Membership'),
+      '#weight' => -80,
+      '#collapsible' => TRUE,
+      '#collapsed' => $collapsed,
+  );
+  
+  $form['ms_membership']['m_plans'] = array(
+      '#title' => t('Assign Membership(s) to all users'), 
+      '#type' => 'checkboxes',
+      '#options' => ms_membership_get_plans(),
+      '#default_value' => $plans_selected,
+      '#description' => t("Select which membership plan should be assigned to all users."),
+  );
+  
+  $form['ms_membership']['ms_membership_send_email'] = array(
+      '#title' => t('Send Membership Signup Email to New Users?'), 
+      '#type' => 'checkbox',
+      '#default_value' => FALSE,
+      '#description' => t("Check this to have the Signup Email sent to the new users as defined in the Membership Plan."),
+  );
+  
+  return;
+}
+
+/**
+ * Implementation of hook_user_import_after_save().
+ */
+function ms_membership_user_import_after_save($settings, $account, $password, $fields, $updated, $update_setting_per_module) {
+  //drupal_set_message('Settings: <pre>'. print_r($settings, TRUE) .'</pre>');
+  //drupal_set_message('Fields: <pre>'. print_r($fields, TRUE) .'</pre>');
+  foreach ($settings['m_plans'] as $key => $mpid) {
+    if ($mpid) {
+      $m_plan = ms_membership_load_membership_plan($mpid);
+      
+      if ($m_plan->mpid) {
+        // Insert into Memberships database
+        $expiration = ($fields['ms_membership']['expiration']) ? $fields['ms_membership']['expiration'] : ms_membership_get_expiration_date($m_plan->mpid);
+        $start_date = ($fields['ms_membership']['start_date']) ? $fields['ms_membership']['start_date'] : 0;
+        $membership = ms_membership_insert_membership(0, $account->uid, $m_plan->mpid, $expiration, 3, $start_date, 0, 0);
+        
+        // Add the roles
+        ms_membership_change_roles($membership->uid, $m_plan->start_grant_roles, $m_plan->start_remove_roles);
+        
+        // Invoke hook_ms_membership_expiring to let other modules act on a new membership
+        module_invoke_all('ms_membership_signup', $account, $membership, $m_plan);
+        
+        // Send Email to User
+        if ($settings['ms_membership_send_email']) {
+          $payment_vars = array(
+            'mid' => $membership->mid,
+          );
+          
+          drupal_mail('ms_membership', 'signup', $account->mail, user_preferred_language($account), $payment_vars);
+        }
+      }
+    }
+  }
+  return;
+}
+
+// ======================================
+// RULES
+// ======================================
+
+/**
+ * Implementation of hook_ms_membership_signup().
+ */
+function ms_membership_ms_membership_signup($account, $membership, $m_plan) {
+  if (module_exists('rules')) {
+    rules_invoke_event('ms_membership_event_membership_signup', $account, $membership, $m_plan);
+  }
+}
+
+/**
+ * Implementation of hook_ms_membership_expiring().
+ */
+function ms_membership_ms_membership_expiring($account, $membership, $m_plan) {
+  if (module_exists('rules')) {
+    rules_invoke_event('ms_membership_event_membership_expiring', $account, $membership, $m_plan);
+  }
+}
+
+/**
+ * Implementation of hook_ms_membership_cancel().
+ */
+function ms_membership_ms_membership_cancel($account, $membership, $m_plan) {
+  if (module_exists('rules')) {
+    rules_invoke_event('ms_membership_event_membership_cancel', $account, $membership, $m_plan);
+  }
+}
+
+/**
+ * Implementation of hook_ms_membership_payment().
+ */
+function ms_membership_ms_membership_payment($account, $membership, $m_plan) {
+  if (module_exists('rules')) {
+    rules_invoke_event('ms_membership_event_membership_payment', $account, $membership, $m_plan);
+  }
+}
+
+// ======================================
+// Content Profile
+// ======================================
+
+/**
+ * Validates the user registration form
+ */
+function ms_membership_content_profile_registration_user_register_validate($form, &$form_state) {
+  require_once drupal_get_path('module', 'node') .'/node.pages.inc';
+
+  foreach ($form['#content_profile_registration_use_types'] as $type => $typename) {
+    $node = (object)$form_state['values'];
+    $node->type = $type;
+    node_object_prepare($node);
+
+    // Make sure there is no user name so we can node_validate
+    unset($node->name);
+
+    if (!in_array('other', content_profile_get_settings($type, 'registration_hide'))) {
+      node_validate($node, $form);
+    }
+    elseif (module_exists('content')) {
+      content_validate($node);
+    }
+
+    $form_state['content_profile_registration'][$type]['node'] = $node;
+  }
+}

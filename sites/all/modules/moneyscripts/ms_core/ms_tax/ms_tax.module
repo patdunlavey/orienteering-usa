@@ -1,0 +1,149 @@
+<?php
+// $Id$
+/**
+* @file
+* MoneyScripts Tax
+* Copyright 2010 MoneyScripts.net
+* http://www.moneyscripts.net
+*/
+
+/**
+ * Implementation of hook_menu().
+ */
+function ms_tax_menu() {
+  $items = array();
+
+  $items['admin/moneyscripts/ms_tax'] = array(
+    'title' => 'Tax',
+    'description' => 'Add a tax to all products',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('ms_tax_admin'),
+    'access arguments' => array('administer moneyscripts'),
+    'type' => MENU_NORMAL_ITEM,
+  );
+
+  return $items;
+}
+
+// ======================================
+// Administration Page:
+// ======================================
+
+/**
+ * Admin Settings Form
+ */
+function ms_tax_admin() {
+  $form['main'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Main Settings'),
+    '#collapsible' => FALSE,
+    '#collapsed' => FALSE,
+  );
+  
+  // -----------------------------
+  // Main Settings
+  // -----------------------------
+  $form['main']['ms_tax_name'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Display Text for Tax in Cart and Order'),
+    '#size' => 32,
+    '#maxlength' => 64,
+    '#default_value' => variable_get('ms_tax_name', t('Tax')),
+    '#description' => t("This is what will appear next to the Tax amount on orders."),
+    '#required' => TRUE,
+  );
+  $form['main']['ms_tax_amount'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Tax Amount to apply to orders by default'),
+    '#size' => 32,
+    '#maxlength' => 64,
+    '#default_value' => variable_get('ms_tax_amount', 0),
+    '#description' => t("This tax will apply to all orders by default."),
+    '#required' => TRUE,
+  );
+  $form['main']['ms_tax_type'] = array(
+    '#type' => 'radios',
+    '#title' => t('Percentage or Fixed Amount?'),
+    '#default_value' => variable_get('ms_tax_type', 'percentage'),
+    '#options' => array('percentage' => t('Percentage'), 'fixed' => t('Fixed')),
+    '#required' => TRUE,
+  );
+
+  return system_settings_form($form);
+}
+
+/**
+ * Module Override Settings Form
+ */
+function ms_tax_custom_settings_form($form_state, $defaults, $override = FALSE) {
+  $form['main'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Main Settings'),
+    '#collapsible' => FALSE,
+    '#collapsed' => FALSE,
+  );
+  
+  // -----------------------------
+  // Main Settings
+  // -----------------------------
+  $form['main']['ms_tax_name'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Display Text for Tax in Cart and Order'),
+    '#size' => 32,
+    '#maxlength' => 64,
+    '#default_value' => ($override) ? $defaults['main']['ms_tax_name'] : variable_get('ms_tax_name', t('Tax')),
+    '#description' => t("This is what will appear next to the Tax amount on orders."),
+    '#required' => TRUE,
+  );
+  $form['main']['ms_tax_amount'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Tax Amount to apply to orders by default'),
+    '#size' => 32,
+    '#maxlength' => 64,
+    '#default_value' => ($override) ? $defaults['main']['ms_tax_amount'] : variable_get('ms_tax_amount', 0),
+    '#description' => t("This tax will apply to all orders by default."),
+    '#required' => TRUE,
+  );
+  $form['main']['ms_tax_type'] = array(
+    '#type' => 'radios',
+    '#title' => t('Percentage or Fixed Amount?'),
+    '#default_value' => ($override) ? $defaults['main']['ms_tax_type'] : variable_get('ms_tax_type', 'percentage'),
+    '#options' => array('percentage' => t('Percentage'), 'fixed' => t('Fixed')),
+    '#required' => TRUE,
+  );
+
+  return $form;
+}
+
+/**
+ * Implementation of hook_ms_cart_add()
+ */
+function ms_tax_ms_cart_add($cart, $product) {
+  $override = $product->data['override_settings']['ms_tax'];
+  
+  $adjustment = new stdClass();
+  $adjustment->id = 'ms_tax_1';
+  $adjustment->display = ($override['ms_tax_override']) ? $override['settings']['main']['ms_tax_name'] : variable_get('ms_tax_name', '');
+  $adjustment->type = ($override['ms_tax_override']) ? $override['settings']['main']['ms_tax_type'] : variable_get('ms_tax_type', 'percentage');
+  $adjustment->value = ($override['ms_tax_override']) ? $override['settings']['main']['ms_tax_amount'] : variable_get('ms_tax_amount', 0);
+  $adjustment->weight = 1;
+  
+  // Add the tax to the order
+  if ($adjustment->value) {
+    ms_core_add_cart_adjustment($adjustment, TRUE);
+  }
+}
+
+/**
+ * Implementation of hook_ms_payment_gateway
+ */
+function ms_tax_ms_product_override() {
+  $gateway[] = array(
+    'name' => 'Tax',
+    'module' => 'ms_tax',
+    'type' => array('all'),
+    'settings_form' => 'ms_tax_custom_settings_form',
+  );
+  
+  return $gateway;
+}

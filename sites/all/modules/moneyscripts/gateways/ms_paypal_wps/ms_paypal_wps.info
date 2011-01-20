@@ -1,0 +1,7 @@
+;$Id$
+name = PayPal Website Payments Standard
+description = Gateway to use PayPal Website Payments Standard
+version = 6.x-1.5
+core = 6.x
+package = MoneyScripts - Gateways
+dependencies[] = ms_core

@@ -1,0 +1,563 @@
+<?php
+// $Id$
+/**
+* @file
+* Shows charts of MoneyScripts Modules stats
+* 
+*/
+
+// ======================================
+// Main Functions:
+// ======================================
+/**
+* Display help and module information
+*/
+function ms_reports_help($path, $arg) {
+  $output = '';
+  switch ($path) {
+    case "admin/help#ms_reports":
+      $output = '<p>'.  t("MS Reports uses Open Flash Charts to display stats for your sales.") .'</p>';
+      break;
+  }
+  return $output;
+}
+
+/**
+ * Implementation of hook_perm().
+ */
+function ms_reports_perm() {
+return array('view moneyscripts charts');
+}
+
+/**
+ * Implementation of hook_menu
+ */
+function ms_reports_menu() {
+  $items = array();
+  $items['admin/moneyscripts/reports/sales'] = array(
+    'title' => 'Sales Charts',
+    'description' => 'View charts of Weekly, Monthly and Yearly sales',
+    'page callback' => 'ms_reports_view_sales',
+    'access arguments' => array('view moneyscripts charts'),
+    'type' => MENU_NORMAL_ITEM,
+   );
+   $items['admin/moneyscripts/reports/products'] = array(
+    'title' => 'Product Statistics',
+    'description' => 'View a pie chart of which products are selling best',
+    'page callback' => 'ms_reports_view_products',
+    'access arguments' => array('view moneyscripts charts'),
+    'type' => MENU_NORMAL_ITEM,
+    'weight' => 1,
+   );
+   if (module_exists('ms_affiliates')) {
+   $items['admin/moneyscripts/reports/affiliates'] = array(
+    'title' => 'Affiliates Statistics',
+    'description' => 'View various charts for MoneyScripts Membership',
+    'page callback' => 'ms_reports_view_affiliates',
+    'access arguments' => array('view moneyscripts charts'),
+    'type' => MENU_NORMAL_ITEM,
+    'weight' => 1,
+   );
+   }
+   $items['admin/moneyscripts/reports/recurring'] = array(
+    'title' => 'Recurring Payments Statistics',
+    'description' => 'View various charts for MoneyScripts Membership',
+    'page callback' => 'ms_reports_view_recurring',
+    'access arguments' => array('view moneyscripts charts'),
+    'type' => MENU_NORMAL_ITEM,
+    'weight' => 3,
+   );
+
+  return $items;
+}
+
+// ======================================
+// Functions:
+// ======================================
+
+/**
+ * Helper Function to Create a Date given an Offset
+ */
+function ms_reports_make_date($day=0, $mon=0, $yr=0) {
+  $dt = localtime(time(), TRUE);
+  $unixnewtime = mktime(
+      0, 0, 0, $dt['tm_mon']+1+$mon, $dt['tm_mday']+$day, $dt['tm_year']+1900+$yr);
+  return $unixnewtime;
+}
+
+/**
+ * Helper Function to Return Colors
+ */
+function ms_reports_get_colors($number) {
+  $colors = array('#ff3333', '#33ff33', '#3333ff', '#ffff33', '#ff33ff', '#33ffff', '#cc6666', '#66cc66', '#6666cc', '#cccc66', '#cc66cc', '#66cccc', '#666666', '#999999', '#cccccc', '#ffffff');
+  return array_slice($colors, 0, $number);
+}
+
+/**
+ * Add the Javascript and Format the HTML required to make the charts work
+ */
+function ms_reports_get_chart_html($chart_id, $chart, $width = "400", $height = "300", $version = "9.0.0") {
+  // Get the URL for the SWF file
+  global $base_url;
+  $ofc_source = $base_url .'/'. drupal_get_path('module', 'ms_reports') .'/includes/open-flash-chart.swf';
+  
+  // Make the Chart Data
+  $chartData = $chart->toPrettyString();
+  
+  // Prepare the JS
+  $js = "
+swfobject.embedSWF('$ofc_source', '$chart_id', '$width', '$height', '$version');
+var data = $chartData;
+function open_flash_chart_data(){
+  return JSON.stringify(data);
+}
+
+function findSWF(movieName) {
+  if (navigator.appName.indexOf('Microsoft')!= -1) {
+    return window[movieName];
+  } else {
+    return document[movieName];
+  }
+}";
+  
+  // Add Required JS
+  drupal_add_js(drupal_get_path('module', 'ms_reports') .'/js/swfobject.js');
+  drupal_add_js(drupal_get_path('module', 'ms_reports') .'/js/json2.js');
+  drupal_add_js($js, 'inline');
+  
+  $html = "<div id='$chart_id'></div>";
+  
+  return $html;
+}
+
+// ======================================
+// Pages:
+// ======================================
+
+/**
+ * Pie Chart for the Products
+ */
+function ms_reports_view_products() {
+  require_once 'includes/open-flash-chart.php';
+  $data = array();
+  $values = array();
+  
+  $result = db_query("SELECT oid FROM {ms_orders} WHERE status = '%s' OR status = '%s'", 'active', 'completed');
+  while ($row = db_fetch_object($result)) {
+    $order = ms_core_order_load($row->oid);
+    
+    if (is_array($order->products)) {
+      foreach ($order->products as $product) {
+        if (!$data[$product->name]) {
+          $data[$product->name] = 0;
+        }
+        $data[$product->name] += 1;
+        }
+      }
+  }
+  
+  foreach ($data as $key => $value) {
+    
+    $values[] = new pie_value(intval($value), $key);
+  }
+  shuffle($values);
+  
+  $pie = new pie();
+  $pie->set_alpha(0.6);
+  $pie->set_start_angle(35);
+  $pie->add_animation(new pie_fade());
+  $pie->set_tooltip( '#label#<br>Sold #val#<br>#percent#' );
+  $pie->set_colours(ms_reports_get_colors(count($values)));
+  $pie->set_values($values);
+  $pie->add_animation(new pie_fade());
+  $pie->gradient_fill();
+  $pie->set_label_colour( '#432BAF' );
+  //$pie->set_no_labels();
+
+  $chart = new open_flash_chart();
+  $chart->add_element($pie);
+  $chart->set_title(new title('Product Sales Pie Chart'));
+  $chart->set_bg_colour('0xFFFFFF');
+  
+  $chartHTML = ms_reports_get_chart_html('ps_chart', $chart, '100%', '400');
+  
+  $output = "<div id='chart'>$chartHTML</div>";
+  print theme('page', $output, TRUE);
+}
+
+/**
+ * Pie Chart for the Best Affiliates
+ */
+function ms_reports_view_affiliates() {
+  require_once 'includes/open-flash-chart.php';
+  $values = array();
+  
+  $result = db_query("SELECT COUNT(aid) AS aidnum, aid FROM {ms_affiliates_genealogy} GROUP BY aid ORDER BY aidnum DESC");
+  while ($affiliate = db_fetch_object($result)) {
+    $account = user_load(array('uid' => $affiliate->aid));
+    if ($account->name AND !$data[$account->name]) {
+      $values[] = new pie_value(intval($affiliate->aidnum), $account->name);
+    }
+  }
+  
+  shuffle($values);
+  
+  $pie = new pie();
+  $pie->set_alpha(0.6);
+  $pie->set_start_angle(35);
+  $pie->add_animation(new pie_fade());
+  $pie->set_tooltip( '#label#<br>Referred #val# Users' );
+  $pie->set_colours(ms_reports_get_colors(count($values)));
+  $pie->set_values($values);
+  $pie->add_animation(new pie_fade());
+  $pie->gradient_fill();
+  $pie->set_label_colour( '#432BAF' );
+  //$pie->set_no_labels();
+  
+  $chart = new open_flash_chart();
+  $chart->add_element($pie);
+  $chart->set_title(new title('Best Affiliates Pie Chart'));
+  $chart->set_bg_colour('0xFFFFFF');
+  
+  $chartHTML = ms_reports_get_chart_html('ps_chart', $chart, '100%', '400');
+  
+  $output = "<div id='chart'>$chartHTML</div>";
+  print theme('page', $output, TRUE);
+}
+
+/**
+ * Weekly, Monthly and Yearly Bar Charts for Recurring Payments
+ */
+function ms_reports_view_recurring() {
+  require_once 'includes/open-flash-chart.php';
+  $viewType = arg(4);
+  $added = Array();
+  $cancelled = Array();
+  $cancelled_oid = Array();
+  
+  $x_axis_labels = new x_axis_labels();
+  $x_axis_labels->visible_steps(2);
+  
+  switch ($viewType) {
+    case 'Yearly':
+      $result = db_query("SELECT * FROM {ms_payments} ORDER BY created ASC");
+      while ($payment = db_fetch_object($result)) {
+        $dateName = 'Year '. date('Y', $payment->created);
+        if (!$added[$dateName]) {
+          $labels[] = $dateName;
+          $added[$dateName] = 0;
+          $cancelled[$dateName] = 0;
+        }
+        if ($payment->type == 'rec_signup') {
+          $added[$dateName] += 1;
+        }
+        if ($payment->type == 'rec_cancel' OR $payment->type == 'rec_eot') {
+          if (!in_array($payment->oid, $cancelled_oid)) {
+            $cancelled[$dateName] += 1;
+            $cancelled_oid[] = $payment->oid;
+          }
+        }
+      }
+      $title = new title('Recurring Payments Stats: Yearly', '{font-size: 20px;}');
+      
+      $x_axis_labels->visible_steps(1);
+    break;
+    
+    case 'Monthly':
+      // Make Labels and Initialize Values
+      for ($i = -11; $i <= 0; $i++) {
+        $tDateName = date('M y', ms_reports_make_date(0, $i, 0));
+        $added[$tDateName] = 0;
+        $cancelled[$tDateName] = 0;
+      }
+      
+      // Get Transactions and organize them
+      $limitTime = ms_reports_make_date(0, -12, 0);
+      $result = db_query("SELECT * FROM {ms_payments} WHERE created > %d", $limitTime);
+      while ($payment = db_fetch_object($result)) {
+        $dateName = date('M y', $payment->created);
+        if ($payment->type == 'rec_signup') {
+          $added[$dateName] += 1;
+        }
+        if ($payment->type == 'rec_cancel' OR $payment->type == 'rec_eot') {
+          if (!in_array($payment->oid, $cancelled_oid)) {
+            $cancelled[$dateName] += 1;
+            $cancelled_oid[] = $payment->oid;
+          }
+        }
+      }
+      $title = new title('Recurring Payments Stats: Last 12 Months', '{font-size: 20px;}');
+    break;
+    
+    case 'Weekly':
+    default:
+      // Make Labels and Initialize Values
+      for ($i = -6; $i <= 0; $i++) {
+        $tDateName = date('M d, Y', ms_reports_make_date($i, 0, 0));
+        $added[$tDateName] = 0;
+        $cancelled[$tDateName] = 0;
+      }
+      
+      // Get Transactions and organize them
+      $limitTime = ms_reports_make_date(-7, 0, 0);
+      $result = db_query("SELECT * FROM {ms_payments} WHERE created > %d", $limitTime);
+      while ($payment = db_fetch_object($result)) {
+        $dateName = date('M d, Y', $payment->created);
+        if ($payment->type == 'rec_signup') {
+          $added[$dateName] += 1;
+        }
+        if ($payment->type == 'rec_cancel' OR $payment->type == 'rec_eot') {
+          if (!in_array($payment->oid, $cancelled_oid)) {
+            $cancelled[$dateName] += 1;
+            $cancelled_oid[] = $payment->oid;
+          }
+        }
+      }
+      $title = new title('Recurring Payments Stats: Last 7 Days', '{font-size: 20px;}');
+    break;
+  }
+  
+  $data = array_values($added);
+  $bar = new bar_glass();
+  $bar->set_tooltip("#x_label#<br>#key# : #val#");
+  $bar->colour('#33FF33');
+  $bar->key('Added', 12);
+  $bar->set_values($data);
+  
+  $data2 = array_values($cancelled);
+  $bar2 = new bar_glass();
+  $bar2->set_tooltip("#x_label#<br>#key# : #val#");
+  $bar2->colour('#FF3333');
+  $bar2->key('Cancelled/Expired', 12);
+  $bar2->set_values($data2);
+  
+  $x_labels = array();
+  foreach ($added as $key => $value) {
+    $x_labels[] = new x_axis_label($key, '#3399cc', 10, FALSE);
+  }
+  
+  $x_axis_labels->set_labels($x_labels);
+  
+  $x = new x_axis();
+  $x->set_labels($x_axis_labels);
+  $x->set_steps(2);
+  $x->colour('#000000')
+      ->grid_colour('#D7E4A3')
+      ->tick_height(5)
+      ->stroke(1);
+  
+  $y = new y_axis();
+  $y->set_range( 0, ceil(max($added)+max($cancelled)), ceil(max($added)/10));
+  
+  $y_legend = new y_legend( 'Sales' );
+  $y_legend->set_style( '{font-size: 12px; color: #736AFF}' );
+  
+  $chart = new open_flash_chart();
+  $chart->set_title( $title );
+  $chart->add_element( $bar );
+  $chart->add_element( $bar2 );
+  $chart->set_x_axis( $x );
+  $chart->set_y_axis( $y );
+  $chart->set_y_legend( $y_legend );
+  $chart->set_bg_colour('0xFFFFFF');
+  
+  $chartHTML = ms_reports_get_chart_html('ps_chart', $chart, '100%', '300');
+  
+  $links = "<div class='ms_stats_links'>"
+    . l('Weekly', 'admin/moneyscripts/reports/recurring/Weekly') .' | '
+    . l('Monthly', 'admin/moneyscripts/reports/recurring/Monthly') .' | '
+    . l('Yearly', 'admin/moneyscripts/reports/recurring/Yearly')
+    ."</div>";
+  
+  $output = "$links
+  <div id='chart'>$chartHTML</div>";
+  print theme('page', $output, TRUE);
+}
+
+/**
+ * Weekly, Monthly and Yearly Bar Charts for Sales and Revenue
+ */
+function ms_reports_view_sales() {
+  require_once 'includes/open-flash-chart.php';
+  $viewType = arg(4);
+  $revenue = Array();
+  $sales = Array();
+  $data = Array();
+  
+  $x_axis_labels = new x_axis_labels();
+  $x_axis_labels->visible_steps(2);
+  
+  $x = new x_axis();
+  $x->set_colour('#000000');
+  $x->set_grid_colour('#dddddd');
+  $x->set_tick_height(5);
+  $x->set_steps(2);
+  $x->set_stroke(1);
+  
+  $y = new y_axis();
+  $y->set_grid_colour('#dddddd');
+  $y->set_stroke(0);
+  
+  switch ($viewType) {
+    case 'Old':
+      $result = db_query("SELECT * FROM {ms_payments} WHERE (type = '%s' OR type = '%s') ORDER BY created ASC", 'cart', 'rec_payment');
+      while ($payment = db_fetch_object($result)) {
+        $dateName = 'Year '. date('Y', $payment->created);
+        
+        if (!$revenue[$dateName]) {
+          $revenue[$dateName] = 0;
+          $sales[$dateName] = 0;
+        }
+
+        $revenue[$dateName] += (float)$payment->amount;
+        $sales[$dateName] += 1;
+      }
+      $title = new title( 'Sales Stats: Yearly' );
+    break;
+    
+    case 'Yearly':
+      // Make Labels and Initialize Values
+      for ($i = -11; $i <= 0; $i++) {
+        $tDateName = date('M y', ms_reports_make_date(0, $i, 0));
+        $revenue[$tDateName] = 0;
+        $sales[$tDateName] = 0;
+      }
+      
+      // Get Transactions and organize them
+      $limitTime = ms_reports_make_date(0, -12, 0);
+      $result = db_query("SELECT * FROM {ms_payments} WHERE (type = '%s' OR type = '%s') AND created > %d", 'cart', 'rec_payment', $limitTime);
+      while ($payment = db_fetch_object($result)) {
+        $dateName = date('M y',  $payment->created);
+        $revenue[$dateName] += (float)$payment->amount;
+        $sales[$dateName] += 1;
+      }
+      $title = new title( 'Sales Stats: Last 12 Months' );
+    break;
+    
+    case 'Monthly':
+      // Make Labels and Initialize Values
+      for ($i = -30; $i <= 0; $i++) {
+        $tDateName = date('F d, Y', ms_reports_make_date($i, 0, 0));
+        $revenue[$tDateName] = 0;
+        $sales[$tDateName] = 0;
+      }
+      
+      // Get Transactions and organize them
+      $limitTime = ms_reports_make_date(-30, 0, 0);
+      $result = db_query("SELECT * FROM {ms_payments} WHERE (type = '%s' OR type = '%s') AND created > %d", 'cart', 'rec_payment', $limitTime);
+      while ($payment = db_fetch_object($result)) {
+        $dateName = date('F d, Y',  $payment->created);
+        $revenue[$dateName] += (float)$payment->amount;
+        $sales[$dateName] += 1;
+      }
+      $title = new title('Sales Stats: Last 30 Days');
+      
+      $x_axis_labels->visible_steps(9);
+      $x->set_steps(9);
+    break;
+    
+    case 'Weekly':
+    default:
+      // Make Labels and Initialize Values
+      for ($i = -6; $i <= 0; $i++) {
+        $tDateName = date('F d, Y', ms_reports_make_date($i, 0, 0));
+        $revenue[$tDateName] = 0;
+        $sales[$tDateName] = 0;
+      }
+      
+      // Get Transactions and organize them
+      $limitTime = ms_reports_make_date(-6, 0, 0);
+      $result = db_query("SELECT * FROM {ms_payments} WHERE (type = '%s' OR type = '%s') AND created > %d", 'cart', 'rec_payment', $limitTime);
+      while ($payment = db_fetch_object($result)) {
+        $dateName = date('F d, Y', $payment->created);
+        $revenue[$dateName] += (float)$payment->amount;
+        $sales[$dateName] += 1;
+      }
+      $title = new title( 'Sales Stats: Last 7 Days' );
+    break;
+  }
+  
+  $x_labels = array();
+  foreach ($revenue as $key => $value) {
+    //$data[] = round($value, 2);
+    $tmp = new dot_value($value, '#0077cc');
+    $tmp->set_tooltip($key ."<br>Revenue: ". ms_core_format_money($value));
+    $data[] = $tmp;
+    $x_labels[] = new x_axis_label($key, '#3399cc', 10, FALSE);
+  }
+  
+  $x_axis_labels->set_labels($x_labels);
+  
+  $data2 = array_values($sales);
+  
+  // Make first bar
+  $bar = new bar_glass();
+  $bar->set_tooltip("#key# : #tip#");
+  $bar->colour('#3333FF');
+  $bar->key('Revenue', 12);
+  $bar->set_values($data);
+  
+  // Make second bar
+  $bar2 = new bar_glass();
+  $bar2->set_tooltip("#key# : #val#");
+  $bar2->colour('#FF3333');
+  $bar2->key('Sales', 12);
+  $bar2->set_values($data2);
+  
+  //
+  // Make our area chart:
+  //
+  $dot = new solid_dot();
+  $dot->size(4);
+  $dot->halo_size(1);
+  $area = new area();
+  $area->set_width(4);
+  $area->set_key('Revenue', 12);
+  $area->set_default_dot_style($dot);
+  $area->set_colour('#0077cc');
+  $area->set_fill_colour('#7cbae3');
+  $area->set_fill_alpha(0.2);
+  $area->set_values($data);
+  
+  //
+  // Make our line chart:
+  //
+  $dot2 = new solid_dot();
+  $dot2->size(3);
+  $dot2->halo_size(1);
+  $dot2->tooltip("#key# : #val#");
+  $line = new line();
+  $line->set_width(2);
+  $line->set_key('Sales', 12);
+  $line->set_default_dot_style($dot2);
+  $line->set_colour('#5abe49');
+  $line->set_values($data2);
+  
+  $x->set_labels($x_axis_labels);
+  
+  $y->set_range(0, ceil(max($revenue))+20, (ceil(max($revenue)+20)/2));
+  
+  $y_legend = new y_legend('Sales');
+  $y_legend->set_style('{font-size: 12px; color: #736AFF}');
+  
+  $chart = new open_flash_chart();
+  $chart->set_title($title);
+  $chart->add_element($area);
+  $chart->add_element($line);
+  $chart->set_x_axis($x);
+  $chart->set_y_axis($y);
+  $chart->set_y_legend($y_legend);
+  $chart->set_bg_colour('0xFFFFFF');
+  
+  $chartHTML = ms_reports_get_chart_html('ps_chart', $chart, '100%', '300');
+  
+  $links = "<div class='ms_stats_links'>"
+    . l('Weekly', 'admin/moneyscripts/reports/sales/Weekly') .' | '
+    . l('Monthly', 'admin/moneyscripts/reports/sales/Monthly') .' | '
+    . l('Yearly', 'admin/moneyscripts/reports/sales/Yearly')
+    ."</div>";
+  
+  $output = "$links
+  <div id='chart'>$chartHTML</div>";
+  print theme('page', $output, TRUE);
+}

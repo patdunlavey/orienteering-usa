@@ -1,0 +1,641 @@
+<?php
+// $Id$
+/**
+* @file
+* Module for integrating a Membership System with Drupal
+* Licensed under the GNU GPLv2 License
+*/
+
+/**
+* Implementation of hook_install().
+*/
+function ms_membership_install() {
+  // Create tables.
+  drupal_install_schema('ms_membership');
+  
+  // Set the weight of the module to 2
+  db_query("UPDATE {system} SET weight = %d WHERE name = '%s'", 2, 'ms_membership');
+}
+
+/**
+* Implementation of hook_uninstall().
+*/
+function ms_membership_uninstall() {
+  // Drop tables.
+  drupal_uninstall_schema('ms_membership');
+  
+  // Delete related variables all at once.
+  db_query("DELETE FROM {variable} WHERE name LIKE 'ms_membership_%%'");
+}
+
+/**
+* Implementation of hook_schema().
+*/
+function ms_membership_schema() {
+  $schema['ms_membership_plans'] = array(
+    'description' => 'Used to hold membership plans',
+    'fields' => array(
+      'mpid' => array(
+        'type' => 'serial', 
+        'description' => 'The unique Membership Plan ID (primary)', 
+        'not null' => TRUE, 
+        'disp-width' => '11'
+      ),
+      'name' => array(
+        'type' => 'varchar', 
+        'description' => 'The name of the Membership Plan', 
+        'length' => '255', 
+        'not null' => TRUE
+      ),
+      'description' => array(
+        'type' => 'text', 
+        'description' => 'Description of the Membership Plan'
+      ),
+      'main_amount' => array(
+        'type' => 'numeric', 
+        'description' => 'The Regular Fee', 
+        'precision' => '10', 
+        'scale' => '2', 
+        'not null' => TRUE
+      ),
+      'main_length' => array(
+        'type' => 'int', 
+        'description' => 'The Regular Period Length', 
+        'not null' => TRUE, 
+        'disp-width' => '11'
+      ),
+      'main_unit' => array(
+        'type' => 'varchar', 
+        'description' => 'The Regular Period Unit', 
+        'length' => '128'
+      ),
+      'trial_amount' => array(
+        'type' => 'numeric', 
+        'description' => 'The Trial Fee', 
+        'precision' => '10', 
+        'scale' => '2', 
+        'not null' => TRUE
+      ),
+      'trial_length' => array(
+        'type' => 'int', 
+        'description' => 'The Trial Period Length', 
+        'not null' => TRUE, 
+        'disp-width' => '11'
+      ),
+      'trial_unit' => array(
+        'type' => 'varchar', 
+        'description' => 'The Trial Period Unit', 
+        'length' => '128'
+      ),
+      'recurring' => array(
+        'type' => 'int', 
+        'description' => 'The Subscription is Recurring', 
+        'not null' => TRUE, 
+        'disp-width' => '11'
+      ),
+      'total_occurrences' => array(
+        'type' => 'int', 
+        'description' => 'The Number of Payments', 
+        'not null' => TRUE, 
+        'disp-width' => '11'
+      ),
+      'signup_mail_subject' => array(
+        'type' => 'varchar', 
+        'description' => 'Subject for Signup Email', 
+        'length' => '255'
+      ),
+      'signup_mail_body' => array(
+        'type' => 'text', 
+        'description' => 'Body for Signup Email'
+      ),
+      'eot_mail_subject' => array(
+        'type' => 'varchar', 
+        'description' => 'Subject for End of Term Email', 
+        'length' => '255'
+      ),
+      'eot_mail_body' => array(
+        'type' => 'text', 
+        'description' => 'Body for End of Term Email'
+      ),
+      'cancel_mail_subject' => array(
+        'type' => 'varchar', 
+        'description' => 'Subject for Cancellation Email', 
+        'length' => '255'
+      ),
+      'cancel_mail_body' => array(
+        'type' => 'text', 
+        'description' => 'Body for Cancellation Email'
+      ),
+      'modify_mail_subject' => array(
+        'type' => 'varchar', 
+        'description' => 'Subject for Modification Email', 
+        'length' => '255'
+      ),
+      'modify_mail_body' => array(
+        'type' => 'text', 
+        'description' => 'Body for Modification Email'
+      ),
+      'expiring_mail_subject' => array(
+        'type' => 'varchar', '
+        description' => 'Subject for Expiring Soon Email', 
+        'length' => '255'
+      ),
+      'expiring_mail_body' => array(
+        'type' => 'text', 
+        'description' => 'Body for Expiring Soon Email'
+      ),
+      'expiring_mail_days' => array(
+        'type' => 'int', 
+        'description' => 'How many days before the membership Expires to send the email', 
+        'not null' => TRUE, 
+        'disp-width' => '11'
+      ),
+      'start_grant_roles' => array(
+        'type' => 'text', 
+        'description' => 'Which Roles can are granted when the membership starts', 
+        'serialize' => TRUE
+      ),
+      'start_remove_roles' => array(
+        'type' => 'text', 
+        'description' => 'Which Roles can are removec when the membership starts', 
+        'serialize' => TRUE
+      ),
+      'expire_grant_roles' => array(
+        'type' => 'text', 
+        'description' => 'Which Roles can are granted when the membership expires', 
+        'serialize' => TRUE
+      ),
+      'expire_remove_roles' => array(
+        'type' => 'text', 
+        'description' => 'Which Roles can are removec when the membership expires', 
+        'serialize' => TRUE
+      ),
+      'weight' => array(
+        'type' => 'int', 
+        'description' => 'Weight', 
+        'not null' => TRUE, 
+        'disp-width' => '11', 
+        'default' => 0
+      ),
+      'allow_roles' => array(
+        'type' => 'text', 
+        'description' => 'Which Roles can  Purchase/Upgrade this role', 
+        'serialize' => TRUE
+      ),
+      'register_urls' => array(
+        'type' => 'varchar', 
+        'description' => 'Special Register Pages to show the Membership Plan on', 
+        'length' => '128', 
+        'default' => ''
+      ),
+      'expire_when' => array(
+        'type' => 'varchar', 
+        'description' => 'When to remove the role', 
+        'length' => '32', 
+        'default' => 'subscr_eot'
+      ),
+      'show_registration' => array(
+        'type' => 'int', 
+        'description' => 'Show on User Registration Screen?', 
+        'not null' => TRUE, 
+        'disp-width' => '11'
+      ),
+      'show_account' => array(
+        'type' => 'int', 
+        'description' => 'Show on User Account Screen?', 
+        'not null' => TRUE, 
+        'disp-width' => '11'
+      ),
+      'modify_options' => array(
+        'type' => 'text', 
+        'description' => 'Which plans can be changed to from this plan', 
+        'serialize' => TRUE
+      ),
+      'data' => array(
+        'type' => 'text', 
+        'description' => 'Serialized Array of Data for the plan', 
+        'serialize' => TRUE
+      ),
+    ),
+    'primary key' => array('mpid'),
+  );
+
+  $schema['ms_memberships'] = array(
+    'description' => 'Used to record all memberships',
+    'fields' => array(
+        'mid' => array(
+          'type' => 'serial', 
+          'description' => 'The unique Membership ID (primary)', 
+          'not null' => TRUE, 
+          'disp-width' => '11'
+        ),
+        'oid' => array(
+          'type' => 'int', 
+          'description' => 'The unique order ID', 
+          'not null' => TRUE, 
+          'disp-width' => '11'
+        ),
+        'uid' => array(
+          'type' => 'int', 
+          'description' => 'The uid of the user making the record', 
+          'not null' => TRUE, 
+          'disp-width' => '11'
+        ),
+        'mpid' => array(
+          'type' => 'int', 
+          'description' => 'The id of the membership plan purchased', 
+          'not null' => TRUE, 
+          'disp-width' => '11'
+        ),
+        'status' => array(
+          'type' => 'int', 
+          'description' => 'The Status of the Membership', 
+          'not null' => TRUE, 
+          'disp-width' => '11', 
+          'default' => 1
+        ),
+        'expiration' => array(
+          'type' => 'int', 
+          'description' => 'The Expiration of the Membership', 
+          'not null' => TRUE, 
+          'disp-width' => '11', 
+          'default' => 0
+        ),
+        'start_date' => array(
+          'type' => 'int', 
+          'description' => 'Start Date for the Membership', 
+          'not null' => TRUE, 
+          'disp-width' => '11', 
+          'default' => 0
+        ),
+        'current_payments' => array(
+          'type' => 'int', 
+          'description' => 'The current number of payments made', 
+          'not null' => TRUE, 
+          'disp-width' => '11',
+          'default' => 0
+        ),
+        'max_payments' => array(
+          'type' => 'int', 
+          'description' => 'The max number of payments for the membership', 
+          'not null' => TRUE, 
+          'disp-width' => '11',
+          'default' => 0
+        ),
+      ),
+    'primary key' => array('mid'),
+  );
+
+  return $schema;
+}
+
+// ======================================
+// Updates:
+// ======================================
+// 5.1 Add a field to the ms_membership table
+function ms_membership_update_6500() {
+  $ret = array();
+  
+  // Add new fields to the database
+  db_add_field($ret, 'ms_membership', 'no_shipping', array('type' => 'int', 'description' => 'Ask the user for shipping address?', 'not null' => TRUE, 'disp-width' => '11', 'default' => 1));
+  
+  return $ret;
+}
+
+// 5.2 Add a primary key to the ms_user_subscriptions table, and change the names of the tables
+function ms_membership_update_6501() {
+  $ret = array();
+  
+  // Add new primary key
+  db_query("ALTER TABLE {ms_user_subscriptions} ADD mid INT NOT NULL AUTO_INCREMENT PRIMARY KEY FIRST"); 
+  
+  // Change the names of the tables
+  db_rename_table($ret, 'ms_membership', 'ms_membership_plans');
+  db_rename_table($ret, 'ms_user_subscriptions', 'ms_memberships');
+  
+  // Change the name of the primary key
+  db_change_field($ret, 'ms_membership_plans', 'sid', 'mpid', array('type' => 'serial', 'description' => 'The unique Membership Plan ID (primary)', 'not null' => TRUE, 'disp-width' => '11'));
+  db_change_field($ret, 'ms_memberships', 'sid', 'mpid', array('type' => 'int', 'description' => 'The id of the membership plan purchased', 'not null' => TRUE, 'disp-width' => '11'));
+  
+  return $ret;
+}
+
+// 5.7 Make the numeric fields not null
+function ms_membership_update_6502() {
+  $ret = array();
+  
+  // Change the name of the primary key
+  db_change_field($ret, 'ms_membership_plans', 'a1', 'a1', array('type' => 'numeric', 'description' => 'The Trial 1 Fee', 'precision' => '10', 'scale' => '2', 'not null' => TRUE));
+  db_change_field($ret, 'ms_membership_plans', 'a2', 'a2', array('type' => 'numeric', 'description' => 'The Trial 2 Fee', 'precision' => '10', 'scale' => '2', 'not null' => TRUE));
+  db_change_field($ret, 'ms_membership_plans', 'a3', 'a3', array('type' => 'numeric', 'description' => 'The Trial 3 Fee', 'precision' => '10', 'scale' => '2', 'not null' => TRUE));
+  
+  return $ret;
+}
+
+// 5.8 Add a field to the ms_membership table
+function ms_membership_update_6503() {
+  $ret = array();
+  
+  // Add new fields to the database
+  db_add_field($ret, 'ms_membership_plans', 'exp_rid', array('type' => 'int', 'description' => 'The Role ID to Grant after Expiration', 'not null' => TRUE, 'disp-width' => '11'));
+  db_add_field($ret, 'ms_membership_plans', 'expiring_mail_subject', array('type' => 'varchar', 'description' => 'Subject for Expiring Soon Email', 'length' => '255'));
+  db_add_field($ret, 'ms_membership_plans', 'expiring_mail_body', array('type' => 'text', 'description' => 'Body for Expiring Soon Email'));
+  db_add_field($ret, 'ms_membership_plans', 'expiring_mail_days', array('type' => 'int', 'description' => 'How many days before the membership Expires to send the email', 'not null' => TRUE, 'disp-width' => '11'));
+        
+  return $ret;
+}
+
+// 6.0 
+// Migrate the payments to MS Core as orders
+// Migrate the Variables
+function ms_membership_update_6600() {
+  $ret = array();
+  
+  // Fix the Admin Email tokens
+  $old_tokens = array('[firstName]', '[lastName]', '[amount]', '[roleName]', '[subscriptionName]', '[membershipName]', '[userName]', '[date]');
+  $new_tokens = array('[customerName]', '', '[paymentAmount]', '[changedRoles]', '[planName]', '[planName]', '[user]', '[site-date]');
+  
+  variable_set('ms_membership_new_membership_mail_subject', str_replace($old_tokens, $new_tokens, variable_get('ms_membership_new_membership_mail_subject', '')));
+  variable_set('ms_membership_new_membership_mail_body', str_replace($old_tokens, $new_tokens, variable_get('ms_membership_new_membership_mail_body', '')));
+  variable_set('ms_membership_cancelled_membership_mail_subject', str_replace($old_tokens, $new_tokens, variable_get('ms_membership_cancelled_membership_mail_subject', '')));
+  variable_set('ms_membership_cancelled_membership_mail_body', str_replace($old_tokens, $new_tokens, variable_get('ms_membership_cancelled_membership_mail_body', '')));
+  
+  
+  // Rename the old ms_membership_plans table to ms_membership_plans_old
+  db_query("RENAME TABLE {ms_membership_plans} TO {ms_membership_plans_old}");
+  
+  // Rename the old ms_memberships table to ms_memberships_old
+  db_query("RENAME TABLE {ms_memberships} TO {ms_memberships_old}");
+  
+  // Create the new tables
+  drupal_install_schema('ms_membership');
+  
+  // Load all of the membership plans into an array
+  $plans_result = db_query("SELECT * FROM {ms_membership_plans_old} ORDER BY mpid ASC");
+  $plans_count = 0;
+  
+  while ($old_plan = db_fetch_object($plans_result)) {
+    // Build the new plan from the old plan
+    $new_plan = new stdClass();
+    
+    // Change 'item_name' to 'name'
+    $new_plan->name = $old_plan->item_name;
+    // Change 'a1' to 'trial_amount'
+    $new_plan->trial_amount = $old_plan->a1;
+    // Change 'p1' to 'trial_length'
+    $new_plan->trial_length = $old_plan->p1;
+    // Change 't1' to 'trial_unit'
+    $new_plan->trial_unit = $old_plan->t1;
+    // Change 'a3' to 'main_amount'
+    $new_plan->main_amount = $old_plan->a3;
+    // Change 'p3' to 'main_length'
+    $new_plan->main_length = $old_plan->p3;
+    // Change 't3' to 'main_unit'
+    $new_plan->main_unit = $old_plan->t3;
+    // Change 'src' to 'recurring'
+    $new_plan->recurring = $old_plan->src;
+    // Change 'srt' to 'total_occurrences'
+    $new_plan->total_occurrences = $old_plan->srt;
+    // Change 'user_types_url' to 'register_urls'
+    $new_plan->register_urls = $old_plan->user_types_url;
+    // Change 'remove_when' to 'expire_when'
+    $new_plan->expire_when = $old_plan->remove_when;
+    
+    // Mark the Override Settings
+    $new_plan->data['override_settings']['ms_paypal_wps']['override'] = 1;
+    // Put 'business' in the paypal_wps gateway_settings for the membership plan
+    $new_plan->data['override_settings']['ms_paypal_wps']['settings']['main']['ms_paypal_wps_email'] = $old_plan->business;
+    // Put 'ms_paypal_wps_use_sandbox' in the paypal_wps gateway_settings for the membership plan
+    $new_plan->data['override_settings']['ms_paypal_wps']['settings']['main']['ms_paypal_wps_use_sandbox'] = variable_get('ms_paypal_api_use_sandbox', FALSE);
+    // Put 'cancel_url' in the paypal_wps gateway_settings for the membership plan
+    $new_plan->data['override_settings']['ms_paypal_wps']['settings']['advanced']['ms_paypal_wps_cancel_return'] = $old_plan->cancel_url;
+    // Put 'page_style' in the paypal_wps gateway_settings for the membership plan
+    $new_plan->data['override_settings']['ms_paypal_wps']['settings']['advanced']['ms_paypal_wps_page_style'] = $old_plan->page_style;
+    // Put 'sra' in the paypal_wps gateway_settings for the membership plan
+    $new_plan->data['override_settings']['ms_paypal_wps']['settings']['advanced']['ms_paypal_wps_sra'] = $old_plan->sra;
+    // Put 'no_shipping' in the paypal_wps gateway_settings for the membership plan
+    $new_plan->data['override_settings']['ms_paypal_wps']['settings']['advanced']['ms_paypal_wps_no_shipping'] = $old_plan->no_shipping;
+    // Set the commission levels in the override settings
+    $new_plan->data['override_settings']['ms_affiliates']['settings']['main']['ms_affiliates_payout_percentages'] = $old_plan->commission_levels;
+    
+    // Set the 'rid' as the default for 'start_grant_roles' and 'expire_remove_roles'
+    $new_plan->start_grant_roles = array($old_plan->rid => $old_plan->rid);
+    $new_plan->start_remove_roles = array();
+    $new_plan->expire_remove_roles = array($old_plan->rid => $old_plan->rid);
+    // Set the 'exp_rid' as the default for 'expire_grant_roles'
+    $new_plan->expire_grant_roles = array($old_plan->exp_rid => $old_plan->exp_rid);
+    
+    // Change Email Template Tokens
+    $new_plan->signup_mail_subject = str_replace($old_tokens, $new_tokens, $old_plan->signup_mail_subject);
+    $new_plan->signup_mail_body = str_replace($old_tokens, $new_tokens, $old_plan->signup_mail_body);
+    $new_plan->eot_mail_subject = str_replace($old_tokens, $new_tokens, $old_plan->eot_mail_subject);
+    $new_plan->eot_mail_body = str_replace($old_tokens, $new_tokens, $old_plan->eot_mail_body);
+    $new_plan->cancel_mail_subject = str_replace($old_tokens, $new_tokens, $old_plan->cancel_mail_subject);
+    $new_plan->cancel_mail_body = str_replace($old_tokens, $new_tokens, $old_plan->cancel_mail_body);
+    $new_plan->modify_mail_subject = str_replace($old_tokens, $new_tokens, $old_plan->modify_mail_subject);
+    $new_plan->modify_mail_body = str_replace($old_tokens, $new_tokens, $old_plan->modify_mail_body);
+    $new_plan->expiring_mail_subject = str_replace($old_tokens, $new_tokens, $old_plan->expiring_mail_subject);
+    $new_plan->expiring_mail_body = str_replace($old_tokens, $new_tokens, $old_plan->expiring_mail_body);
+    
+    // Set the rest of the settings
+    $new_plan->mpid = $old_plan->mpid;
+    $new_plan->description = $old_plan->description;
+    $new_plan->expiring_mail_days = $old_plan->expiring_mail_days;
+    $new_plan->weight = $old_plan->weight;
+    $new_plan->allow_roles = unserialize($old_plan->allow_roles);
+    $new_plan->show_registration = $old_plan->show_registration;
+    $new_plan->show_account = $old_plan->show_account;
+    
+    // Write the new Membership Plan to the table, making sure to set the mpid as the same
+    if (ms_membership_write_record('ms_membership_plans', $new_plan)) {
+      $plans_count += 1;
+    }
+  }
+  
+  // Load all of the memberships into an array
+  $mem_result = db_query("SELECT * FROM {ms_memberships_old} ORDER BY mid ASC");
+  $mem_count = 0;
+  
+  while ($old_mem = db_fetch_object($mem_result)) {
+    $oid = $m_plan = $old_payment = $order = $order_type = $old_payment = $new_payment = NULL;
+    $m_plan = ms_membership_load_membership_plan($old_mem->mpid);
+    
+    // Get the payment that was entered for this membership
+    
+    if (!$old_mem->pid OR $old_mem->pid == -1) {
+      // Do nothing since there is no payment associated with it, cannot create an order for it.
+      $oid = -1;
+    }
+    elseif ($old_mem->pid) {
+      // Get the payment for this membership
+      $old_payment = db_fetch_object(db_query("SELECT * FROM {ms_paypal_payments} WHERE pid = %d", $old_mem->pid));
+      
+      $oid = $old_payment->custom;
+      
+      // Load th order for the membership
+      $order = ms_core_order_load($old_payment->custom);
+      
+      $order->order_type = ($old_payment->subscr_id) ? 'recurring' : 'cart';
+      $order->uid = $old_mem->uid;
+      $order->status = ($order->order_type == 'recurring') ? 'active' : 'completed';
+      $order->created = strtotime($old_payment->date);
+      
+      // Set the order as not secured
+      $order->secured = FALSE;
+      
+      ms_core_order_save($order);
+      
+      $product = new stdClass();
+      // Add the product variables
+      $product->recurring_schedule = array();
+      $product->type = $order_type;
+      $product->name = $m_plan->name;
+      $product->module = 'ms_membership';
+      $product->amount = $m_plan->main_amount;
+      $product->id = $m_plan->mpid;
+      
+      $order = ms_core_add_order_product($order, $product, TRUE);
+      
+      // Add the payments to the order from the pid and the subscr_id
+      // Build and enter the payments
+      if ($old_mem->subscr_id) {
+        $result2 = db_query("SELECT * FROM {ms_paypal_payments} WHERE subscr_id = '%s'", $old_mem->subscr_id);
+        
+        while ($row_payment = db_fetch_object($result2)) {
+          $payment = new stdClass();
+          $payment->oid = $order->oid;
+          $payment->type = ms_membership_upgrade_get_type($row_payment->txn_type);
+          $payment->transaction = $row_payment->txn_id;
+          $payment->full_name = $row_payment->first_name .' '. $row_payment->last_name;
+          $payment->gateway = 'ms_paypal_wps';
+          $payment->amount = $row_payment->mc_gross;
+          $payment->currency = $row_payment->mc_currency;
+          $payment->data = $row_payment;
+          $payment->recurring_schedule = array();
+          $payment->created = strtotime($row_payment->date);
+          $payment->modified = strtotime($row_payment->date);
+          ms_core_enter_payment($payment, FALSE, FALSE);
+        }
+      }
+      else {
+        $payment = new stdClass();
+        
+        $payment->oid = $order->oid;
+        $payment->type = ms_membership_upgrade_get_type($old_payment->txn_type);
+        $payment->transaction = $old_payment->txn_id;
+        $payment->full_name = $old_payment->first_name .' '. $old_payment->last_name;
+        $payment->gateway = 'ms_paypal_wps';
+        $payment->amount = $old_payment->mc_gross;
+        $payment->currency = $old_payment->mc_currency;
+        $payment->data = $old_payment;
+        $payment->recurring_schedule = array();
+        $payment->created = strtotime($old_payment->date);
+        $payment->modified = strtotime($old_payment->date);
+        ms_core_enter_payment($payment, FALSE, FALSE);
+      }
+    }
+    
+    // Build the new membership from the old membership
+    $new_mem = new stdClass();
+    
+    // Transfer the settings
+    $new_mem->mid = $old_mem->mid;
+    $new_mem->uid = $old_mem->uid;
+    $new_mem->mpid = $old_mem->mpid;
+    $new_mem->status = $old_mem->status;
+    $new_mem->expiration = $old_mem->expiration;
+    $new_mem->start_date = $old_mem->start_date;
+    $new_mem->current_payments = $old_mem->current_payments;
+    $new_mem->max_payments = $old_mem->max_payments;
+    
+    // Set the order id
+    $new_mem->oid = $oid;
+    
+    if (ms_membership_write_record('ms_memberships', $new_mem)) {
+      $mem_count += 1;
+    }
+  }
+  
+  drupal_set_message(t('Successfully Imported %plans Membership Plans and %mems Memberships',
+    array('%plans' => $plans_count, '%mems' => $mem_count)));
+  
+  return $ret;
+}
+
+// 6.4
+// Set a default variable
+function ms_membership_update_6601() {
+  $ret = array();
+  variable_set('ms_membership_show_membership_price', TRUE);
+  return $ret;
+}
+
+// 6.10
+// Add a new field to the database
+function ms_membership_update_6602() {
+  $ret = array();
+  
+  // Add new fields to the database
+  db_add_field($ret, 'ms_membership_plans', 'modify_options', array('type' => 'text', 'description' => 'Which plans can be changed to from this plan', 'serialize' => TRUE));
+  
+  // Populate the fields with the default
+  db_query("UPDATE {ms_membership_plans} SET modify_options = '%s'", serialize(array()));
+  
+  // Set the weight of the module to 2
+  db_query("UPDATE {system} SET weight = %d WHERE name = '%s'", 2, 'ms_membership');
+  
+  return $ret;
+}
+
+//===============================================
+//      Helper Functions
+//===============================================
+function ms_membership_write_record($table, $object) {
+  $schema = drupal_get_schema($table);
+
+  $fields = $values = $placeholders = array();
+
+  foreach ($schema['fields'] as $field => $info) {
+    // For inserts, populate defaults from Schema if not already provided
+    if (!isset($object->$field) && isset($info['default'])) {
+      $object->$field = $info['default'];
+    }
+
+    // Build arrays for the fields, placeholders, and values in our query.
+    if (isset($object->$field)) {
+      $fields[] = $field;
+      $placeholders[] = db_type_placeholder($info['type']);
+
+      if (empty($info['serialize'])) {
+        $values[] = $object->$field;
+      }
+      else {
+        $values[] = serialize($object->$field);
+      }
+    }
+  }
+  
+  $query = "INSERT INTO {". $table ."} (". implode(', ', $fields) .') VALUES ('. implode(', ', $placeholders) .')';
+  return db_query($query, $values);
+}
+
+function ms_membership_upgrade_get_type($txn) {
+  switch ($txn) {
+    case 'web_accept':
+      return 'cart';
+    case 'subscr_modify':
+      return 'rec_modify';
+    case 'subscr_signup':
+      return 'rec_signup';
+    case 'subscr_payment':
+      return 'rec_payment';
+    case 'subscr_cancel':
+      return 'rec_cancel';
+    case 'subscr_eot':
+      return 'rec_eot';
+    case 'refund':
+      return 'rec_refund';
+    case 'reverse':
+      return 'rec_reversal';
+  }
+}

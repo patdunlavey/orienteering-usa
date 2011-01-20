@@ -1,0 +1,6 @@
+/* $Id: yui_editor.css,v 1.1.2.9.2.2 2008/11/21 22:54:27 jeffcd Exp $ */
+
+/* Remove Drupal background image from <li> within editor toolbar. */
+.yui-toolbar-groupitem {
+  background-image: none;
+}

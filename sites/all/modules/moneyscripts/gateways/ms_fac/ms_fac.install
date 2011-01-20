@@ -1,0 +1,263 @@
+<?php
+// $Id: $
+
+/**
+ * @file
+ */
+ 
+/**
+ * Implementation of hook_requirements().
+ */
+function ms_fac_requirements($phase) {
+  $t = get_t();
+
+  $has_curl = function_exists('curl_init');
+
+  $requirements['ms_fac_curl'] = array(
+    'title' => $t('cURL'),
+    'value' => $has_curl ? $t('Enabled') : $t('Not found'),
+  );
+  if (!$has_curl) {
+    $requirements['ms_fac_curl']['severity'] = REQUIREMENT_ERROR;
+    $requirements['ms_fac_curl']['description'] = $t("First Atlantic Commerce requires the PHP <a href='!curl_url'>cURL</a> library.", array('!curl_url' => 'http://php.net/manual/en/curl.setup.php'));
+  }
+
+  return $requirements;
+}
+
+/**
+* Implementation of hook_install().
+*/
+function ms_fac_install() {
+  // Create tables.
+  drupal_install_schema('ms_fac');
+  
+  // Create random encryption key
+  variable_set('ms_fac_encryption_key', drupal_get_private_key());
+}
+
+function ms_fac_uninstall() {
+  // Drop tables.
+  drupal_uninstall_schema('ms_fac');
+  
+  // Delete related variables all at once.
+  db_query("DELETE FROM {variable} WHERE name LIKE 'ms_fac_%%'");
+}
+
+/**
+* Implementation of hook_schema().
+*/
+function ms_fac_schema() {
+  $schema['ms_fac_payment_profiles'] = array(
+    'description' => t('Used to hold Customer Payment Profiles'),
+    'fields' => array(
+      'id' => array(
+        'description' => t('The unique ID.'), 
+        'type' => 'serial', 
+        'unsigned' => TRUE, 
+        'not null' => TRUE,
+      ),
+      'uid' => array(
+        'description' => t('The user ID'), 
+        'type' => 'int', 
+        'unsigned' => TRUE, 
+        'not null' => TRUE, 
+        'default' => 0,
+      ),
+      'status' => array(
+        'description' => t('The status'),
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'billToFirstName' => array(
+        'description' => t('Billing First Name'), 
+        'type' => 'varchar', 
+        'length' => 128, 
+        'not null' => TRUE, 
+        'default' => '',
+      ),
+      'billToLastName' => array(
+        'description' => t('Billing Last Name'), 
+        'type' => 'varchar', 
+        'length' => 128, 
+        'not null' => TRUE, 
+        'default' => '',
+      ),
+      'billToAddress' => array(
+        'description' => t('Billing Address'), 
+        'type' => 'varchar', 
+        'length' => 255, 
+        'not null' => TRUE, 
+        'default' => '',
+      ),
+      'billToCity' => array(
+        'description' => t('Billing City'), 
+        'type' => 'varchar', 
+        'length' => 64, 
+        'not null' => TRUE, 
+        'default' => '',
+      ),
+      'billToState' => array(
+        'description' => t('Billing State ISO2'), 
+        'type' => 'varchar', 
+        'length' => 16, 
+        'not null' => TRUE, 
+        'default' => '',
+      ),
+      'billToZip' => array(
+        'description' => t('Billing Zip'), 
+        'type' => 'varchar', 
+        'length' => 16, 
+        'not null' => TRUE, 
+        'default' => '',
+      ),
+      'billToCountry' => array(
+        'description' => t('Billing Country ISO2'), 
+        'type' => 'varchar', 
+        'length' => 16, 
+        'not null' => TRUE, 
+        'default' => '',
+      ),
+      'billToPhoneNumber' => array(
+        'description' => t('Billing Phone'), 
+        'type' => 'varchar', 
+        'length' => 32, 
+        'not null' => TRUE, 
+        'default' => '',
+      ),
+      'billToFaxNumber' => array(
+        'description' => t('Billing Fax'), 
+        'type' => 'varchar', 
+        'length' => 32, 
+        'not null' => TRUE, 
+        'default' => '',
+      ),
+      'cardNumber' => array(
+        'description' => t('Credit Card Number'), 
+        'type' => 'varchar', 
+        'length' => 255, 
+        'not null' => TRUE, 
+        'default' => '',
+      ),
+      'expirationMonth' => array(
+        'description' => t('Expiration Month of the Card'), 
+        'type' => 'varchar', 
+        'length' => 16, 
+        'not null' => TRUE, 
+        'default' => '',
+      ),
+      'expirationYear' => array(
+        'description' => t('Expiration Year of the Card'), 
+        'type' => 'varchar', 
+        'length' => 16, 
+        'not null' => TRUE, 
+        'default' => '',
+      ),
+    ),
+    'indexes' => array(
+      'uid' => array('uid'),
+    ),
+    'primary key' => array('id'),
+  );
+  
+  $schema['ms_fac_shipping_profiles'] = array(
+    'description' => t('Used to hold Customer Shipping Profiles'),
+    'fields' => array(
+      'id' => array(
+        'description' => t('The unique ID.'), 
+        'type' => 'serial', 
+        'unsigned' => TRUE, 
+        'not null' => TRUE,
+      ),
+      'uid' => array(
+        'description' => t('The user ID'), 
+        'type' => 'int', 
+        'unsigned' => TRUE, 
+        'not null' => TRUE, 
+        'default' => 0,
+      ),
+      'status' => array(
+        'description' => t('The status'),
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'shipToFirstName' => array(
+        'description' => t('Shipping First Name'), 
+        'type' => 'varchar', 
+        'length' => 128, 
+        'not null' => TRUE, 
+        'default' => '',
+      ),
+      'shipToLastName' => array(
+        'description' => t('Shipping Last Name'), 
+        'type' => 'varchar', 
+        'length' => 128, 
+        'not null' => TRUE, 
+        'default' => '',
+      ),
+      'shipToAddress' => array(
+        'description' => t('Shipping Address'), 
+        'type' => 'varchar', 
+        'length' => 255, 
+        'not null' => TRUE, 
+        'default' => '',
+      ),
+      'shipToCity' => array(
+        'description' => t('Shipping City'), 
+        'type' => 'varchar', 
+        'length' => 64, 
+        'not null' => TRUE, 
+        'default' => '',
+      ),
+      'shipToState' => array(
+        'description' => t('Shipping State ISO2'), 
+        'type' => 'varchar', 
+        'length' => 16, 
+        'not null' => TRUE, 
+        'default' => '',
+      ),
+      'shipToZip' => array(
+        'description' => t('Shipping Zip'), 
+        'type' => 'varchar', 
+        'length' => 16, 
+        'not null' => TRUE, 
+        'default' => '',
+      ),
+      'shipToCountry' => array(
+        'description' => t('Shipping Country ISO2'), 
+        'type' => 'varchar', 
+        'length' => 16, 
+        'not null' => TRUE, 
+        'default' => '',
+      ),
+      'shipToPhoneNumber' => array(
+        'description' => t('Shipping Phone'), 
+        'type' => 'varchar', 
+        'length' => 32, 
+        'not null' => TRUE, 
+        'default' => '',
+      ),
+      'shipToFaxNumber' => array(
+        'description' => t('Shipping Fax'), 
+        'type' => 'varchar', 
+        'length' => 32, 
+        'not null' => TRUE, 
+        'default' => '',
+      ),
+    ),
+    'indexes' => array(
+      'uid' => array('uid'),
+    ),
+    'primary key' => array('id'),
+  );
+  
+  return $schema;
+}
+
+// ======================================
+// Updates:
+// ======================================

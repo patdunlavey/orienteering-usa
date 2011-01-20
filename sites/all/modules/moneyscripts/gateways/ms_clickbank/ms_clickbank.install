@@ -1,0 +1,74 @@
+<?php
+// $Id$
+/**
+* @file
+* Module for integrating ClickBank with MS Modules
+* Licensed under the GNU GPLv2 License
+*/
+
+/**
+* Implementation of hook_install().
+*/
+function ms_clickbank_install() {
+  // Create tables.
+  drupal_install_schema('ms_clickbank');
+}
+
+/**
+* Implementation of hook_uninstall().
+*/
+function ms_clickbank_uninstall() {
+  // Drop tables.
+  drupal_uninstall_schema('ms_clickbank');
+  
+  // Delete related variables all at once.
+  db_query("DELETE FROM {variable} WHERE name LIKE 'ms_clickbank%%'");
+}
+
+/**
+* Implementation of hook_schema().
+*/
+function ms_clickbank_schema() {
+  $schema['ms_clickbank_products'] = array(
+    'description' => 'Used to hold clickbank products',
+    'fields' => array(
+      'cbpid' => array(
+        'type' => 'serial', 
+        'description' => 'The unique ClickBank Product ID (primary)', 
+        'not null' => TRUE, 
+        'disp-width' => '11'
+      ),
+      'name' => array(
+        'type' => 'varchar', 
+        'description' => 'The name of the Membership Plan', 
+        'length' => '255', 
+        'not null' => TRUE
+      ),
+      'clickbank_id' => array(
+        'type' => 'varchar', 
+        'description' => 'The id of the product in clickbank', 
+        'length' => '255', 
+        'not null' => TRUE
+      ),
+      'module' => array(
+        'type' => 'varchar', 
+        'description' => 'The name of the Module', 
+        'length' => '255', 
+        'not null' => TRUE
+      ),
+      'product_id' => array(
+        'type' => 'int', 
+        'description' => 'The Product ID of the module', 
+        'not null' => TRUE, 
+        'disp-width' => '11'
+      ),
+    ),
+    'primary key' => array('cbpid'),
+  );
+
+  return $schema;
+}
+
+// ======================================
+// Updates:
+// ======================================

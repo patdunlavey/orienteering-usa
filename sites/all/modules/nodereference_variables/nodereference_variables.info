@@ -1,0 +1,14 @@
+; $Id: 
+name = Node Reference Variables
+description = Presents nodes referenced using fields created by the Node Reference module as template variables in the node templates in various ways, including jQuery UI tabs.
+package = CCK
+core = 6.x
+
+dependencies[] = nodereference
+
+; Information added by drupal.org packaging script on 2009-07-02
+version = "6.x-1.1"
+core = "6.x"
+project = "nodereference_variables"
+datestamp = "1246556497"
+

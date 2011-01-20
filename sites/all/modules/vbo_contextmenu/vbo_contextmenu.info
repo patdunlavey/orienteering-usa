@@ -1,0 +1,12 @@
+; $Id: vbo_contextmenu.info,v 1.1.2.2 2010/01/14 12:55:09 jide Exp $
+name = VBO Context Menu
+description = Provides a context menu for Views Bulk Operations.
+core = 6.x
+dependencies[] = views_bulk_operations
+package = Views
+; Information added by drupal.org packaging script on 2010-01-14
+version = "6.x-1.1"
+core = "6.x"
+project = "vbo_contextmenu"
+datestamp = "1263474906"
+

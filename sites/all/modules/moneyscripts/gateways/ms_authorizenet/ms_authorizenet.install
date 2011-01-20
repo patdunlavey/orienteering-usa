@@ -1,0 +1,406 @@
+<?php
+// $Id: $
+
+/**
+ * @file
+ */
+
+/**
+ * Implementation of hook_requirements().
+ */
+function ms_authorizenet_requirements($phase) {
+  $t = get_t();
+
+  $has_curl = function_exists('curl_init');
+
+  $requirements['ms_authorizenet_curl'] = array(
+    'title' => $t('cURL'),
+    'value' => $has_curl ? $t('Enabled') : $t('Not found'),
+  );
+  if (!$has_curl) {
+    $requirements['ms_authorizenet_curl']['severity'] = REQUIREMENT_ERROR;
+    $requirements['ms_authorizenet_curl']['description'] = $t("Authorize.net requires the PHP <a href='!curl_url'>cURL</a> library.", array('!curl_url' => 'http://php.net/manual/en/curl.setup.php'));
+  }
+
+  return $requirements;
+}
+
+/**
+* Implementation of hook_install().
+*/
+function ms_authorizenet_install() {
+  // Create tables.
+  drupal_install_schema('ms_authorizenet');
+}
+
+function ms_authorizenet_uninstall() {
+  // Drop tables.
+  drupal_uninstall_schema('ms_authorizenet');
+  
+  // Delete related variables all at once.
+  db_query("DELETE FROM {variable} WHERE name LIKE 'ms_authorizenet_%%'");
+}
+
+/**
+* Implementation of hook_schema().
+*/
+function ms_authorizenet_schema() {
+  $schema['ms_authorizenet_cim_profiles'] = array(
+    'description' => t('Used to hold Customer Profiles'),
+    'fields' => array(
+      'id' => array(
+        'type' => 'serial', 
+        'description' => t('The unique ID (primary)'), 
+        'not null' => TRUE, 
+        'disp-width' => '11',
+      ),
+      'uid' => array(
+        'type' => 'int', 
+        'description' => t('The User ID'), 
+        'disp_width' => '11', 
+        'not null' => TRUE, 
+        'default' => 0,
+      ),
+      'profile_id' => array(
+        'type' => 'varchar', 
+        'description' => t('The Customer Profile ID on Authorize.net'), 
+        'length' => '128', 
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'email' => array(
+        'type' => 'varchar', 
+        'description' => t('The email address associated with this profile'), 
+        'length' => '128', 
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'description' => array(
+        'type' => 'varchar', 
+        'description' => t('The description of this profile'), 
+        'length' => '255', 
+        'not null' => TRUE,
+        'default' => '',
+      ),
+    ),
+    'indexes' => array(
+      'profile_id' => array('profile_id'),
+      'uid' => array('uid'),
+    ),
+    'primary key' => array('id'),
+  );
+  
+  $schema['ms_authorizenet_payment_profiles'] = array(
+    'description' => t('Used to hold Customer Payment Profiles'),
+    'fields' => array(
+      'id' => array(
+        'description' => t('The unique ID.'), 
+        'type' => 'serial', 
+        'unsigned' => TRUE, 
+        'not null' => TRUE,
+      ),
+      'uid' => array(
+        'description' => t('The user ID'), 
+        'type' => 'int', 
+        'unsigned' => TRUE, 
+        'not null' => TRUE, 
+        'default' => 0,
+      ),
+      'profile_id' => array(
+        'type' => 'varchar', 
+        'description' => t('The Customer Profile ID on Authorize.net'), 
+        'length' => '128', 
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'payment_id' => array(
+        'type' => 'varchar', 
+        'description' => t('The Customer Payment Profile ID on Authorize.net'), 
+        'length' => '128', 
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'status' => array(
+        'description' => t('The status'),
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'billToFirstName' => array(
+        'description' => t('Billing First Name'), 
+        'type' => 'varchar', 
+        'length' => 128, 
+        'not null' => TRUE, 
+        'default' => '',
+      ),
+      'billToLastName' => array(
+        'description' => t('Billing Last Name'), 
+        'type' => 'varchar', 
+        'length' => 128, 
+        'not null' => TRUE, 
+        'default' => '',
+      ),
+      'billToAddress' => array(
+        'description' => t('Billing Address'), 
+        'type' => 'varchar', 
+        'length' => 255, 
+        'not null' => TRUE, 
+        'default' => '',
+      ),
+      'billToCity' => array(
+        'description' => t('Billing City'), 
+        'type' => 'varchar', 
+        'length' => 64, 
+        'not null' => TRUE, 
+        'default' => '',
+      ),
+      'billToState' => array(
+        'description' => t('Billing State ISO2'), 
+        'type' => 'varchar', 
+        'length' => 16, 
+        'not null' => TRUE, 
+        'default' => '',
+      ),
+      'billToZip' => array(
+        'description' => t('Billing Zip'), 
+        'type' => 'varchar', 
+        'length' => 16, 
+        'not null' => TRUE, 
+        'default' => '',
+      ),
+      'billToCountry' => array(
+        'description' => t('Billing Country ISO2'), 
+        'type' => 'varchar', 
+        'length' => 16, 
+        'not null' => TRUE, 
+        'default' => '',
+      ),
+      'billToPhoneNumber' => array(
+        'description' => t('Billing Phone'), 
+        'type' => 'varchar', 
+        'length' => 32, 
+        'not null' => TRUE, 
+        'default' => '',
+      ),
+      'billToFaxNumber' => array(
+        'description' => t('Billing Fax'), 
+        'type' => 'varchar', 
+        'length' => 32, 
+        'not null' => TRUE, 
+        'default' => '',
+      ),
+      'cardNumber' => array(
+        'description' => t('Last 4 Digits of Card Number'), 
+        'type' => 'varchar', 
+        'length' => 32, 
+        'not null' => TRUE, 
+        'default' => '',
+      ),
+      'expirationMonth' => array(
+        'description' => t('Expiration Month of the Card'), 
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'expirationYear' => array(
+        'description' => t('Expiration Year of the Card'), 
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+    ),
+    'indexes' => array(
+      'payment_id' => array('payment_id'),
+      'profile_id' => array('profile_id'),
+      'uid' => array('uid'),
+    ),
+    'primary key' => array('id'),
+  );
+  
+  $schema['ms_authorizenet_shipping_profiles'] = array(
+    'description' => t('Used to hold Customer Shipping Profiles'),
+    'fields' => array(
+      'id' => array(
+        'description' => t('The unique ID.'), 
+        'type' => 'serial', 
+        'unsigned' => TRUE, 
+        'not null' => TRUE,
+      ),
+      'uid' => array(
+        'description' => t('The user ID'), 
+        'type' => 'int', 
+        'unsigned' => TRUE, 
+        'not null' => TRUE, 
+        'default' => 0,
+      ),
+      'profile_id' => array(
+        'type' => 'varchar', 
+        'description' => t('The Customer Profile ID on Authorize.net'), 
+        'length' => '128', 
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'shipping_id' => array(
+        'type' => 'varchar', 
+        'description' => t('The Customer Shipping Profile ID on Authorize.net'), 
+        'length' => '128', 
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'status' => array(
+        'description' => t('The status'),
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'shipToFirstName' => array(
+        'description' => t('Shipping First Name'), 
+        'type' => 'varchar', 
+        'length' => 128, 
+        'not null' => TRUE, 
+        'default' => '',
+      ),
+      'shipToLastName' => array(
+        'description' => t('Shipping Last Name'), 
+        'type' => 'varchar', 
+        'length' => 128, 
+        'not null' => TRUE, 
+        'default' => '',
+      ),
+      'shipToAddress' => array(
+        'description' => t('Shipping Address'), 
+        'type' => 'varchar', 
+        'length' => 255, 
+        'not null' => TRUE, 
+        'default' => '',
+      ),
+      'shipToCity' => array(
+        'description' => t('Shipping City'), 
+        'type' => 'varchar', 
+        'length' => 64, 
+        'not null' => TRUE, 
+        'default' => '',
+      ),
+      'shipToState' => array(
+        'description' => t('Shipping State ISO2'), 
+        'type' => 'varchar', 
+        'length' => 16, 
+        'not null' => TRUE, 
+        'default' => '',
+      ),
+      'shipToZip' => array(
+        'description' => t('Shipping Zip'), 
+        'type' => 'varchar', 
+        'length' => 16, 
+        'not null' => TRUE, 
+        'default' => '',
+      ),
+      'shipToCountry' => array(
+        'description' => t('Shipping Country ISO2'), 
+        'type' => 'varchar', 
+        'length' => 16, 
+        'not null' => TRUE, 
+        'default' => '',
+      ),
+      'shipToPhoneNumber' => array(
+        'description' => t('Shipping Phone'), 
+        'type' => 'varchar', 
+        'length' => 32, 
+        'not null' => TRUE, 
+        'default' => '',
+      ),
+      'shipToFaxNumber' => array(
+        'description' => t('Shipping Fax'), 
+        'type' => 'varchar', 
+        'length' => 32, 
+        'not null' => TRUE, 
+        'default' => '',
+      ),
+    ),
+    'indexes' => array(
+      'shipping_id' => array('shipping_id'),
+      'profile_id' => array('profile_id'),
+      'uid' => array('uid'),
+    ),
+    'primary key' => array('id'),
+  );
+  
+  return $schema;
+}
+
+// ======================================
+// Updates:
+// ======================================
+// 1.3
+// Add the CIM tables
+function ms_authorizenet_update_6100() {
+  $ret = array();
+  
+  // Import payments from MS PayPal API
+  if (!db_table_exists('ms_authorizenet_cim_profiles')) {
+    // Create tables.
+    drupal_install_schema('ms_authorizenet');
+  }
+  
+  return $ret;
+}
+
+// 1.3
+function ms_authorizenet_update_6101() {
+  $ret = array();
+  
+  // Remove the CVV field from the database
+  db_drop_field($ret, 'ms_authorizenet_payment_profiles', 'cardCode');
+  
+  return $ret;
+}
+
+// 1.6
+function ms_authorizenet_update_6102() {
+  $ret = array();
+  
+  // Add new fields to the database
+  if (!db_column_exists('ms_authorizenet_payment_profiles', 'expirationMonth')) {
+    db_add_field($ret, 'ms_authorizenet_payment_profiles', 'expirationMonth', array(
+      'description' => t('Expiration Month of the Card'), 
+      'type' => 'int',
+      'unsigned' => TRUE,
+      'not null' => TRUE,
+      'default' => 0,
+    ));
+  }
+  if (!db_column_exists('ms_authorizenet_payment_profiles', 'expirationYear')) {
+    db_add_field($ret, 'ms_authorizenet_payment_profiles', 'expirationYear', array(
+      'description' => t('Expiration Year of the Card'), 
+      'type' => 'int',
+      'unsigned' => TRUE,
+      'not null' => TRUE,
+      'default' => 0,
+    ));
+  }
+  
+  // Populate the new fields
+  $result = db_query("SELECT * FROM {ms_authorizenet_payment_profiles}");
+  
+  // Set the expiration date of the cards
+  while ($row = db_fetch_object($result)) {
+    $expDate = explode('-', $row->expirationDate);
+    
+    db_query("UPDATE {ms_authorizenet_payment_profiles} SET expirationMonth = %d, expirationYear = %d WHERE id = %d", 
+      $expDate[1], $expDate[0], $row->id);
+  }
+  
+  // Remove the expirationDate field from the database
+  db_drop_field($ret, 'ms_authorizenet_payment_profiles', 'expirationDate');
+  
+  // Set the status fields
+  db_query("UPDATE {ms_authorizenet_payment_profiles} SET status = %d", 1);
+  db_query("UPDATE {ms_authorizenet_shipping_profiles} SET status = %d", 1);
+  
+  
+  return $ret;
+}

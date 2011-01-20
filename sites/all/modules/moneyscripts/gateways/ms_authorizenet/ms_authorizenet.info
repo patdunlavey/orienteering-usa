@@ -1,0 +1,8 @@
+;$Id$
+name = Authorize.net
+description = Payment Gateway for Authorize.net
+version = 6.x-1.7
+core = 6.x
+package = MoneyScripts - Gateways
+
+dependencies[] = ms_core

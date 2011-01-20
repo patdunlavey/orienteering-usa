@@ -1,0 +1,84 @@
+<?php
+// $Id: commentblock.module,v 1.1.2.2 2009/10/09 08:23:31 ximo Exp $
+
+/**
+ * @file
+ * Moves the comment form into a block and provides a default view for the
+ * comment listing.
+ *
+ * Author:
+ *   Dick Olsson (http://drupal.org/user/239911)
+ *   Joakim Stai (http://drupal.org/user/88701)
+ *
+ * Sponsors:
+ *   Senzilla (http://senzilla.com/)
+ *   NodeOne (http://nodeone.se/)
+ */
+
+/**
+ * Implementation of hook_views_api().
+ */
+function commentblock_views_api() {
+  return array(
+    'api' => 2,
+    'path' => drupal_get_path('module', 'commentblock') .'/views',
+  );
+}
+
+/**
+ * Implementation of hook_nodeapi().
+ *
+ * This will make room for your custom comment view, by removing the regular
+ * comment listing from the node body.
+ */
+function commentblock_nodeapi(&$node, $op) {
+  if ($op == 'view') {
+    $node->comment = NULL;
+  }
+}
+
+/**
+ * Implementation of hook_block().
+ */
+function commentblock_block($op, $delta = 0, $edit = array()) {
+  switch ($op) {
+    case 'list':
+      $blocks = array();
+      $blocks['comment_form'] = array('info' => t('Comment form'));
+      return $blocks;
+
+    case 'view':
+      $block = array();
+      switch ($delta) {
+        case 'comment_form':
+          // Only nodes dressed in page view are invited to this party.
+          if ((arg(0) == 'node') && is_numeric(arg(1)) && (arg(2) == NULL)) {
+            $node = node_load(arg(1));
+
+            // Only display the form if we are allowed to post comments.
+            // Note that this works because this function is called before the
+            // 'view' operation in hook_nodeapi().
+            if (user_access('post comments') && $node->comment > 1) {
+              $block['subject'] = t('Post new comment');
+              $block['content'] = drupal_get_form('comment_form', array('nid' => $node->nid));
+            }
+          }
+      }
+      return $block;
+  }
+}
+
+/**
+ * Implementation of hook_form_alter().
+ */
+function commentblock_form_alter(&$form, $form_state, $form_id) {
+  // When you use a custom view for displaying comments, many options on the
+  // node type settings page are irrelevant.
+  if ($form_id == 'node_type_form') {
+    $form['comment']['comment_default_mode']['#access'] = FALSE;
+    $form['comment']['comment_default_order']['#access'] = FALSE;
+    $form['comment']['comment_default_per_page']['#access'] = FALSE;
+    $form['comment']['comment_controls']['#access'] = FALSE;
+    $form['comment']['comment_form_location']['#access'] = FALSE;
+  }
+}

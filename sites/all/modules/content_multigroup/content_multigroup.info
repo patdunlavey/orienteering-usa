@@ -1,0 +1,14 @@
+; $Id: content_multigroup.info,v 1.1 2009/11/25 14:10:06 ndeschildre Exp $
+
+name = Content Multigroup
+description = Combine multiple CCK fields into repeating field collections that work in unison. This module is experimental and not ready for production.
+dependencies[] = content
+dependencies[] = fieldgroup
+package = CCK
+core = 6.x
+; Information added by drupal.org packaging script on 2009-11-25
+version = "6.x-1.0"
+core = "6.x"
+project = "content_multigroup"
+datestamp = "1259158518"
+

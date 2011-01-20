@@ -1,0 +1,36 @@
+<?php
+// $Id$
+/**
+ * @file
+ * Provides a Views style plugin for jQuery jcarousel.
+ */
+
+/**
+ * Implementation of hook_views_api().
+ */
+function viewscarousel_views_api() {
+  return array('api' => 2);
+}
+
+/**
+ * Themes the Views Carousel View.
+ */
+function theme_viewscarousel_view($view, $options = array(), $rows = array()) {
+  // Remove the skin and skin path from the options.
+  $skin = $options['skin'];
+  $path = ($skin == 'custom') ? $options['skin_path'] : NULL;
+  unset($options['skin'], $options['skin_path']);
+
+  // Remove any empty options and convert any numbers to float values.
+  foreach ($options as $key => $value) {
+    if (is_numeric($value)) {
+      $options[$key] = (float)$value;
+    }
+    if (empty($value)) {
+      unset($options[$key]);
+    }
+  }
+
+  // Use jCarousel to create the carousel.
+  return theme('jcarousel', $rows, $options, $skin, $path, 'viewscarousel-'. $view->name .'-'. $view->current_display);
+}

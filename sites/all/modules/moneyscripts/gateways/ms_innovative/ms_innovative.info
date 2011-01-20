@@ -1,0 +1,7 @@
+;$Id$
+name = Innovative Gateway
+description = Gateway to use Innovative Gateway
+version = 6.x-1.2
+core = 6.x
+package = MoneyScripts - Gateways
+dependencies[] = ms_core

@@ -1,0 +1,26 @@
+/* $Id: vbo_contextmenu.css,v 1.1.2.2 2010/01/14 12:55:09 jide Exp $ */
+
+ul#vbo_contextmenu {
+	list-style:none;
+	width:auto;
+	max-width:400px;
+	min-width:300px;
+	background:white;
+	opacity:.9;
+	overflow:hidden;
+}
+
+ul#vbo_contextmenu li {
+	list-style:none;
+	background:none;
+}
+
+ul#vbo_contextmenu li a {
+	padding: 1px 5px;
+	text-decoration:none !important;
+}
+
+ul#vbo_contextmenu li.hover a {
+	color:HighlightText;
+	background-color:Highlight;
+}

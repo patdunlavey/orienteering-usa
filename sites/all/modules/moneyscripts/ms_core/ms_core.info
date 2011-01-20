@@ -1,0 +1,8 @@
+;$Id$
+name = MS Core
+description = Core Module with Functions and Hooks needed by other modules
+version = 6.x-1.13
+core = 6.x
+package = MoneyScripts
+datestamp = "1280738116"
+dependencies[] = token

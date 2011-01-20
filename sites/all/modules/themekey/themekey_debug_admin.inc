@@ -1,0 +1,49 @@
+<?php
+// $Id: themekey_debug_admin.inc,v 1.1.2.3 2010/01/13 12:14:21 mkalkbrenner Exp $
+
+/**
+ * @file
+ * provides a debug mode for module ThemeKey.
+ * @see themekey.module
+ *
+ * @author Markus Kalkbrenner | Cocomore AG
+ *   @see http://drupal.org/user/124705
+ */
+
+
+/**
+ * Form builder for the form to enable ThemeKey debug mode.
+ *
+ * @ingroup forms
+ */
+function themekey_debug_settings_form() {
+  $form = array();
+  $form['themekey_debug'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Debug Settings'),
+    '#collapsible' => FALSE,
+    '#collapsed' => FALSE,
+    '#description' => t("Debug information will only be visible for site's administrator."),
+  );
+
+  $form['themekey_debug']['themekey_debug_show_property_values'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Show ThemeKey properties values'),
+    '#default_value' => variable_get('themekey_debug_show_property_values', FALSE),
+    '#description' => t('Shows current values of ThemeKey properties on every page in message box. Additionally you can start creating a corresponding Theme Switching Rule by clicking on a value.'),
+  );
+
+  $form['themekey_debug']['themekey_debug_trace_rule_switching'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Trace ThemeKey rule switching'),
+    '#default_value' => variable_get('themekey_debug_trace_rule_switching', FALSE),
+    '#description' => t('Prints out detailed information about matching or non matching rules.'),
+  );
+
+  $form['buttons']['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Save configuration'),
+  );
+
+  return system_settings_form($form);
+}
