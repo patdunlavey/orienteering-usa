@@ -1,0 +1,11 @@
+<?php
+function ousa_form_alter(&$form, &$form_state, $form_id) {
+//    dpm($form_id);
+    switch($form_id) {
+    case 'page_node_form':
+        if(isset($form['field_default_map_node'])) {
+//            dpm($form);
+        }
+        break;
+    }
+}

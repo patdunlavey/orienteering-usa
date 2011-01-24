@@ -1,0 +1,10 @@
+; $Id: ousa.info,v 1.1.4.5 2011/01/16 09:37:30 patdunlavey Exp $
+name = Orienteering USA
+description = Defines custom functions for this site.
+dependencies[] = content
+dependencies[] = nodereference
+dependencies[] = imageapi
+package = Other
+core = 6.x
+version = "6.x-1.x-dev"
+core = "6.x"
