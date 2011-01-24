@@ -217,7 +217,7 @@ ul.sc_menu {background:none repeat scroll 0 0 #FFFFFF; display:block; height:128
 
 
 #banner.roundies {-moz-border-radius:10px 0 0 0; -webkit-border-radius:10px 0 0 0; border-radius:10px 0 0 0; width:960px; height:150px}
-.interior-page { background:url(images/global/content-back.jpg)  bottom left no-repeat #cee4ff; -moz-border-radius:10px; -webkit-border-radius:10px; border-radius:10px; padding:11px 0; margin:22px 0 15px; position:relative; z-index:1;}
+.interior-page { background:url(images/global/content-back.jpg)  bottom left no-repeat #cee4ff; -moz-border-radius:10px; -webkit-border-radius:10px; border-radius:10px; padding:11px 0; margin:0px 0 15px; position:relative; z-index:1;}
 
 .breadcrumb { background:#FFF no-repeat 0 0/*url(images/global/whitey.png) top left repeat*/; opacity:0.8; filter:alpha(opacity=80); margin:0 11px 11px; padding:11px; ty-radius:10px 10px 0 0; -webkit-border-radius:10px 10px 0 0; border-radius:10px 10px 0 0;}
 .interior-page-in { background:url(images/global/whitey.png) top left repeat; margin:11px 11px 0; padding:11px;}
