@@ -202,7 +202,9 @@ ul.sc_menu {background:none repeat scroll 0 0 #FFFFFF; display:block; height:128
 			INTERNAL PAGE
 ******************************************/
 #block-views-Pages-block_1 .edit { display:none}
-.not-front #banner.holder {height:150px;}
+.not-front #banner.holder {/*height:150px;*/}
+.not-front #banner.holder .views-row {max-height:150px;}
+.node-type-book > .content {overflow:auto;height:600px;}
 
 /*BANNER*/
 .vertical-tabs-group_default_map .views-field-field-banner-fid img, .vertical-tabs-group_default_map_video .views-field-field-banner-fid img, .vertical-tabs-group_default_map_news .views-field-field-banner-fid img, .vertical-tabs-group_default_map_docs .views-field-field-banner-fid img
@@ -255,4 +257,17 @@ ul.sc_menu {background:none repeat scroll 0 0 #FFFFFF; display:block; height:128
 .footcol ul li { list-style:none none; margin:0; line-height:18px}
 .footcol h2 { background:none; color:#002255;font-family:"Arial Black",sans-serif; font-size:13px; font-weight:normal; line-height:12px; margin:0; padding:0; } 
 
+body{background-color:transparent;}
 #map.holder {height:200px; margin:0; overflow:hidden;}
+#foot.holder {position:relative;}
+#map.holder {
+    background: url("images/global/map.jpg") no-repeat scroll -150px 0 transparent;
+    height: 200px;
+    margin: 0;
+    overflow: hidden;
+    position: absolute;
+    top: -130px;
+    width: 960px;
+    z-index: -999;
+}
+.ousacolumn.ousatwo {background-color:#ffffff;}
