@@ -179,3 +179,20 @@ function phptemplate_preprocess_page(&$vars) {
 	
 	//dpm($vars);
 }
+
+function phptemplate_preprocess_block(&$variables) {
+
+    $block = &$variables['block'];
+
+    if ($block->module == 'advancedbookblocks') {
+        $node = menu_get_object();
+        $toplevel[] = $node->book['bid'];
+        if (!empty($toplevel)) {
+            $tree = recursive_book_array_builder($toplevel);
+            $trail = book_trail_builder();
+            if (empty($trail)) $trail = array();
+            $block->content = theme('menu_creation_by_array', $tree, $trail);
+        }
+    }
+
+}
