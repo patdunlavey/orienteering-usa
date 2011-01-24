@@ -464,3 +464,6 @@ div.node .column-side .column-wrapper {
   font-weight:normal;
   font-size:16px;
   }
+
+  .group-default-map .form-radios .form-item {float:left;}
+  
