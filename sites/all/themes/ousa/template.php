@@ -187,10 +187,17 @@ function phptemplate_preprocess_block(&$variables) {
     if ($block->module == 'advancedbookblocks') {
         $node = menu_get_object();
         $toplevel[] = $node->book['bid'];
+        $block->subject = $node->book['title'];
         if (!empty($toplevel)) {
             $tree = recursive_book_array_builder($toplevel);
+            // get subtree  to have that option
+            foreach($tree as $branch) {
+                $newtree = $branch['below'];
+                break;
+            }
             $trail = book_trail_builder();
             if (empty($trail)) $trail = array();
+            // use $newtree instead of $tree if you want to only show links for subpages of the top page
             $block->content = theme('menu_creation_by_array', $tree, $trail);
         }
     }
