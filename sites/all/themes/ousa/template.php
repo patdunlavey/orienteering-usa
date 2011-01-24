@@ -187,11 +187,11 @@ function phptemplate_preprocess_block(&$variables) {
     if ($block->module == 'advancedbookblocks') {
         $node = menu_get_object();
         $toplevel[] = $node->book['bid'];
-        $block->subject = $node->book['title'];
         if (!empty($toplevel)) {
             $tree = recursive_book_array_builder($toplevel);
-            // get subtree  to have that option
+            // get subtree  to have that option, also get node title of book root and put it into the block title
             foreach($tree as $branch) {
+                $block->subject = $branch['link']['title'];
                 $newtree = $branch['below'];
                 break;
             }
