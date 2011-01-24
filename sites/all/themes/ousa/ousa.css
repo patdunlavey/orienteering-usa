@@ -204,7 +204,7 @@ ul.sc_menu {background:none repeat scroll 0 0 #FFFFFF; display:block; height:128
 #block-views-Pages-block_1 .edit { display:none}
 .not-front #banner.holder {/*height:150px;*/}
 .not-front #banner.holder .views-row {max-height:150px;}
-.node-type-book > .content {overflow:auto;height:600px;}
+.node-type-book > .content {overflow:auto;max-height:600px;}
 
 /*BANNER*/
 .vertical-tabs-group_default_map .views-field-field-banner-fid img, .vertical-tabs-group_default_map_video .views-field-field-banner-fid img, .vertical-tabs-group_default_map_news .views-field-field-banner-fid img, .vertical-tabs-group_default_map_docs .views-field-field-banner-fid img
