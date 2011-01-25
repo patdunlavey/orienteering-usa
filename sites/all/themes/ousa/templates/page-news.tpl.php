@@ -80,18 +80,21 @@
 </div></div>
 <div class="clearboth"></div>
 <?php print $home_sponsors; ?>
-<div class="clearboth"></div>
-<?php include ('copyright.php') ?>
 
 </div>
 
-<div class="ousacolumn ousatwo"><?php print $sidebar_second; ?>
+<div class="ousacolumn ousatwo">
+<?php print $sidebar_second; ?>
+<div class="clearboth">
+<?php include ('copyright.php') ?>
+</div></div>
+<div class="clearboth"></div>
 
 <?php include ('footcol.php') ; ?>
 
 
 </div>
-</div></div>
+</div>
 
 <div class="clearboth"></div>
 
