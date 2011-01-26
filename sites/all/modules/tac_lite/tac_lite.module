@@ -1,5 +1,5 @@
 <?php
-// $Id: tac_lite.module,v 1.9.2.19 2010/10/22 20:46:48 yogadex Exp $
+// $Id: tac_lite.module,v 1.9.2.20 2010/11/16 20:07:04 yogadex Exp $
 /**
  * @file
  *   Control access to site content based on taxonomy, roles and users.
@@ -122,7 +122,7 @@ function tac_lite_admin_settings() {
       '#options' => $scheme_options,
       '#required' => TRUE,
     );
-    
+
     $ret = system_settings_form($form);
     // Special handling is required when this form is submitted.
     $ret['#submit'][] = '_tac_lite_admin_settings_submit';
@@ -139,7 +139,7 @@ function _tac_lite_admin_settings_submit($form, &$form_state) {
   // First, save settings the default way.
   system_settings_form_submit($form, $form_state);
   // Next, rebuild the node_access table.
-  node_access_rebuild();
+  node_access_rebuild(TRUE);
   //drupal_set_message(t('The content access permissions have been rebuilt.'));
   // And rebuild menus, in case the number of schemes has changed.
   menu_rebuild();
@@ -216,7 +216,7 @@ function tac_lite_admin_scheme_form($form_state, $i) {
       '#description' => t('Select which permissions are granted by this scheme.  <br/>Note when granting update, it is best to enable visibility on all terms.  Otherwise a user may unknowingly remove invisible terms while editing a node.'),
       '#required' => FALSE,
     );
-    
+
     $form['tac_lite_config_scheme_' . $i]['term_visibility'] = array(
       '#type' => 'checkbox',
       '#title' => t('Visibility'),
@@ -281,12 +281,12 @@ function tac_lite_admin_scheme_form_submit($form, &$form_state) {
  * Implementation of hook_user().
  */
 function tac_lite_user($op, $edit, $account, $category = NULL) {
-  
+
   if (!user_access('administer tac_lite')) {
     // Only for tac_lite administrators.
     return;
   }
-  
+
   switch ($op) {
     case 'categories':
       return array(array('name' => 'tac_lite',
@@ -297,7 +297,7 @@ function tac_lite_user($op, $edit, $account, $category = NULL) {
         ),
       );
       break;
-    
+
     case 'form':
       $vocabularies = taxonomy_get_vocabularies();
       if ($category == 'tac_lite') {
@@ -321,7 +321,7 @@ function tac_lite_user($op, $edit, $account, $category = NULL) {
 
               foreach ($vids as $vid) {
                 $v = $vocabularies[$vid];
-                $form['tac_lite'][$config['realm']][$vid] = 
+                $form['tac_lite'][$config['realm']][$vid] =
                   _taxonomy_term_select($v->name,
                     NULL, // name no longer used in new form api
                     isset($terms[$vid]) ? $terms[$vid] : NULL,
@@ -340,7 +340,7 @@ function tac_lite_user($op, $edit, $account, $category = NULL) {
                       array('!url' => url('admin/user/access/tac_lite/scheme_1'))) . "</p>\n",
             '#weight' => -1,
           );
- 
+
           return $form;
         }
       }
@@ -350,7 +350,7 @@ function tac_lite_user($op, $edit, $account, $category = NULL) {
 
 /**
  * Implements hook_node_access_records().
- * 
+ *
  * We are given a node and we return records for the node_access table.  In
  * our case, we inpect the node's taxonomy and grant permissions based on the
  * terms.
@@ -538,13 +538,13 @@ function tac_lite_db_rewrite_sql($query, $primary_table, $primary_field, $args) 
       $term_visibility = TRUE;
     }
   }
-  
+
   if ($term_visibility) {
     // Prevent query from finding terms the current user does not have permission to see.
     $join = "LEFT JOIN {term_data} tac_td ON $primary_table.tid = tac_td.tid";
     $where = "$primary_table.tid IN (" . implode(', ', $tids) .
       ") OR tac_td.vid NOT IN (" . implode(',', $vids) .")";
-    
+
     return array('join' => $join, 'where' => $where);
   }
 }
