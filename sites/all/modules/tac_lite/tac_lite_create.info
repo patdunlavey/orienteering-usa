@@ -3,9 +3,9 @@ description = Hide taxonomy terms on node add/edit forms.
 dependencies[] = tac_lite
 core = 6.x
 
-; Information added by drupal.org packaging script on 2010-11-13
-version = "6.x-1.4"
+; Information added by drupal.org packaging script on 2010-11-17
+version = "6.x-1.x-dev"
 core = "6.x"
 project = "tac_lite"
-datestamp = "1289688676"
+datestamp = "1289953596"
 
