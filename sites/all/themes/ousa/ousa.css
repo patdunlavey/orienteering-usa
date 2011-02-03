@@ -266,8 +266,20 @@ body{background-color:transparent;}
     margin: 0;
     overflow: hidden;
     position: absolute;
-    top: -130px;
+    top: -100px;
     width: 960px;
     z-index: -999;
+}.ousacolumn.ousatwo {background-color:#ffffff;margin-bottom:100px;}
+#page_closure {    padding-left: 116px;
 }
-.ousacolumn.ousatwo {background-color:#ffffff;margin-bottom:100px;}
+#map.holder #block-views-728x90banner_ads-block_1 {
+	position:absolute;
+	bottom:0;
+}
+#map.holder #block-views-728x90banner_ads-block_1 img {
+	background-color:#000000;
+}
+
+.yui-toolbar-group-undoredo h3, .yui-toolbar-group-insertitem h3, .yui-toolbar-group-indentlist h3 {
+    width: auto;
+}

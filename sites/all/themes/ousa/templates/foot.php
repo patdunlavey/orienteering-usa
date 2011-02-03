@@ -4,6 +4,10 @@
 <div class="clearboth"></div>
 
 <div id="map" class="holder">
+
+<div id="page_closure">
+<?php print $page_closure; ?>
+</div>
 <?php // <img src="/sites/all/themes/ousa/images/global/map.jpg" height="267" width="2085"  /> ?>
 </div>
 </div></div><!--foot-->

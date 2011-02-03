@@ -104,7 +104,7 @@
 
 <?php include ('foot.php') ?>
 
-  <?php print $page_closure; ?>
+  <?php // print $page_closure; ?>
 
   <?php print $closure; ?>
 
