@@ -1,10 +1,15 @@
 <?php
 function ousa_form_alter(&$form, &$form_state, $form_id) {
-//    dpm($form_id);
     switch($form_id) {
     case 'page_node_form':
+        // hide some fields from regular authenticated users
+        global $user;
+        if(count($user->roles) < 2 && $user->uid != $form['uid']) {
+            $form['title']['#access'] = FALSE;
+            $form['field_default_map_node']['#access'] = FALSE;
+            $form['taxonomy'][3]['#access'] = FALSE;
+        }
         if(isset($form['field_default_map_node'])) {
-//            dpm($form);
         }
         break;
     }
