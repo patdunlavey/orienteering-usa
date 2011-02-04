@@ -467,3 +467,7 @@ div.node .column-side .column-wrapper {
 
   .group-default-map .form-radios .form-item {float:left;}
   
+  .yui-toolbar-group-undoredo h3, .yui-toolbar-group-insertitem h3, .yui-toolbar-group-indentlist h3 {
+    width: auto;
+}
+  
