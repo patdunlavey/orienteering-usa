@@ -257,20 +257,11 @@ ul.sc_menu {background:none repeat scroll 0 0 #FFFFFF; display:block; height:128
 .footcol ul li { list-style:none none; margin:0; line-height:18px}
 .footcol h2 { background:none; color:#002255;font-family:"Arial Black",sans-serif; font-size:13px; font-weight:normal; line-height:12px; margin:0; padding:0; } 
 
-body{background-color:transparent;}
-#map.holder {height:200px; margin:0; overflow:hidden;}
 #foot.holder {position:relative;}
-#map.holder {
-    background: url("images/global/map.jpg") no-repeat scroll -150px 0 transparent;
-    height: 200px;
-    margin: 0;
-    overflow: hidden;
-    position: absolute;
-    top: -100px;
-    width: 960px;
-    z-index: -999;
-}.ousacolumn.ousatwo {background-color:#ffffff;margin-bottom:100px;}
-#page_closure {    padding-left: 116px;
+.ousacolumn.ousatwo {background-color:#ffffff;margin-bottom:100px;}
+#page_closure {
+    margin-top: -40px;
+    padding-left: 116px;
 }
 #map.holder #block-views-728x90banner_ads-block_1 {
 	position:absolute;
@@ -282,4 +273,9 @@ body{background-color:transparent;}
 
 .yui-toolbar-group-undoredo h3, .yui-toolbar-group-insertitem h3, .yui-toolbar-group-indentlist h3 {
     width: auto;
+}
+
+#mid-inner.sector {
+    background: url("images/global/map.jpg") no-repeat scroll -160px bottom transparent;
+    padding-bottom: 140px;
 }
