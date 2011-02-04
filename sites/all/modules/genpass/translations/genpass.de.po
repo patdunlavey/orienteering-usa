@@ -1,0 +1,79 @@
+# $Id: genpass.de.po,v 1.1.2.3 2009/11/28 12:53:32 japanitrat Exp $
+# German translation of Drupal (general)
+# Copyright 2009 Volker Wegert <drupal@volker-wegert.de>
+# Generated from files:
+# genpass.module: n/a
+# genpass.info,v 1.1 2008/08/20 02:56:36 starbow
+#, fuzzy
+#
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: German translation of xmlsitemap\n"
+"POT-Creation-Date: 2009-07-29 23:02+0200\n"
+"PO-Revision-Date: 2009-07-29 23:05+0100\n"
+"Last-Translator: Alexander Haß\n"
+"Language-Team: Alexander Hass\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"X-Poedit-Language: German\n"
+"X-Poedit-Country: GERMANY\n"
+"X-Poedit-SourceCharset: utf-8\n"
+
+#: genpass.module:57
+msgid "Password handling"
+msgstr "Passwort-Vergabe"
+
+#: genpass.module:60
+msgid "Users must enter a password on registration (default Drupal behaviour)."
+msgstr "Benutzer müssen bei der Registrierung ein Passwort eingeben (Drupal-Standardverhalten)."
+
+#: genpass.module:61
+msgid "Users may enter a password on registration. If not, a random password will be generated."
+msgstr "Benutzer können bei der Registrierung ein Passwort eingeben. Wenn dies nicht erfolgt, wird ein zufälliges Passwort generiert."
+
+#: genpass.module:62
+msgid "Users cannot choose a password on registration. It will be generated."
+msgstr "Benutzer können bei der Registrierung kein Passwort eingeben, es wird immer generiert."
+
+#: genpass.module:64
+msgid "Choose a password handling mode for new users. Note that for manual user creation by an administrator the second option always applies."
+msgstr "Wählen Sie das Verfahren zur Vergabe des Passworts neuer Benutzer. Beachten Sie, dass bei der manuellen Anlage von Benutzern durch einen Administrator immer das zweite Verfahren angewendet wird."
+
+#: genpass.module:68
+msgid "Generated password length"
+msgstr "Länge des generierten Passworts"
+
+#: genpass.module:72
+msgid "Set the length of generated passwords here. Allowed range: 5 to 32"
+msgstr "Geben Sie die Länge des generierten Passworts an. Erlaubter Bereich: 5 bis 32 Zeichen"
+
+#: genpass.module:76
+msgid "Generated password entropy"
+msgstr "Zeichenvorrat"
+
+#: genpass.module:78
+msgid "Give a list of possible characters for a generated password. Note that the list must contain at least X different characters where X is defined by the length you have given above."
+msgstr "Geben Sie eine Liste der möglichen Zeichen an, aus denen das Passwort generiert wird. Beachten Sie, dass diese Liste mindestens soviele verschiedene Zeichen enthalten muss, wie Sie oben als Länge des generierten Passworts angegeben haben."
+
+#: genpass.module:109
+msgid "The length of a generated password must be between 5 and 32"
+msgstr "Die Länge des generierten Passworts muss zwischen 5 und 32 liegen."
+
+#: genpass.module:114
+msgid "The list of possible characters is not long or unique enough"
+msgstr "Der Zeichenvorrat ist nicht groß genug oder enthält nicht genügend viele unterschiedliche Zeichen"
+
+#: genpass.module:0
+msgid "genpass"
+msgstr "genpass"
+
+#: genpass.info:0
+msgid "Generate Password"
+msgstr "Passwort-Generierung"
+
+#: genpass.info:0
+msgid "Generate a password when adding a new user."
+msgstr "Generiert ein zufälliges Passwort bei Anlage neuer Benutzer."
