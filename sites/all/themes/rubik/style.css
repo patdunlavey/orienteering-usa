@@ -465,8 +465,11 @@ div.node .column-side .column-wrapper {
   font-size:16px;
   }
 
-  .group-default-map .form-radios .form-item {float:left;}
-  
+.group--default-map .form-radios .form-item, 
+.group-default-map-docs  .form-radios .form-item, 
+.group-default-map .form-radios .form-item  
+{float:left;}
+
   .yui-toolbar-group-undoredo h3, .yui-toolbar-group-insertitem h3, .yui-toolbar-group-indentlist h3 {
     width: auto;
 }
