@@ -279,3 +279,7 @@ ul.sc_menu {background:none repeat scroll 0 0 #FFFFFF; display:block; height:128
     background: url("images/global/map.jpg") no-repeat scroll -160px bottom transparent;
     padding-bottom: 140px;
 }
+
+span>div.field-content {
+display:inline;
+}
