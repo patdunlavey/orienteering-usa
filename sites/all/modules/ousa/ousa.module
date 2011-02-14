@@ -1,5 +1,6 @@
 <?php
 function ousa_form_alter(&$form, &$form_state, $form_id) {
+//    dpm($form_id);
     switch($form_id) {
     case 'page_node_form':
         // hide some fields from regular authenticated users
@@ -13,4 +14,49 @@ function ousa_form_alter(&$form, &$form_state, $form_id) {
         }
         break;
     }
+    // remove temptation to attach files using core upload
+    if(isset($form['attachments'])) {
+        $form['attachments']['#access'] = FALSE;       
+    }
+}
+
+function ousa_menu_alter(&$items) {
+//    foreach($items as $key => $data) {
+//        if(strpos($key,'content')) {
+//            dpm($key);
+//        }
+//    }
+}
+
+function ousa_menu_link_alter(&$item, $menu) {
+//    if(strpos($item['link_path'], 'user')) {
+//    watchdog('debug',$item['link_path']);
+//    }
+    if($item['link_path'] == 'user/content') {
+        $item['hidden'] = 1;
+    }
+}
+
+/**
+ * theme function for file attachments that use the core upload module
+ * @param $files
+ */
+function ousa_upload_attachments($files) {
+  $header = array(t('Attachment'), t('Date'), t('Size'));
+  $rows = array();
+  dpm($files);
+  dpm('here');
+  foreach ($files as $file) {
+      $file_link = theme('filefield_file', (array)$file);
+    $file = (object) $file;
+    if ($file->list && empty($file->remove)) {
+      $href = file_create_url($file->filepath);
+      $text = $file->description ? $file->description : $file->filename;
+//      $rows[] = array(l($text, $href), format_size($file->filesize));
+      $rows[] = array($file_link, date('n-j-Y',$file->timestamp), format_size($file->filesize));
+    }
+  }
+  if (count($rows)) {
+    return theme('table', $header, $rows, array('id' => 'attachments'));
+  }
 }
