@@ -16,7 +16,7 @@ function ousa_form_alter(&$form, &$form_state, $form_id) {
     }
     // remove temptation to attach files using core upload
     if(isset($form['attachments'])) {
-        $form['attachments']['#access'] = FALSE;       
+        $form['attachments']['wrapper']['new']['#access'] = FALSE;       
     }
 }
 
