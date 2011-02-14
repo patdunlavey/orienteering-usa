@@ -1,37 +1,36 @@
 <?php
 function ousa_form_alter(&$form, &$form_state, $form_id) {
-//    dpm($form_id);
-    switch($form_id) {
-    case 'page_node_form':
+    //    dpm($form_id);
+    $matches = array('page_node_form'=> TRUE, 'documents_node_form'=>TRUE);
+    if($matches[$form_id]) {
         // hide some fields from regular authenticated users
         global $user;
-        if(count($user->roles) < 2 && $user->uid != $form['uid']) {
+        if(count($user->roles) < 2 && $user->uid != $form['uid'] && $form->nid['#value']) {
             $form['title']['#access'] = FALSE;
             $form['field_default_map_node']['#access'] = FALSE;
             $form['taxonomy'][3]['#access'] = FALSE;
         }
         if(isset($form['field_default_map_node'])) {
         }
-        break;
     }
     // remove temptation to attach files using core upload
     if(isset($form['attachments'])) {
-        $form['attachments']['wrapper']['new']['#access'] = FALSE;       
+        $form['attachments']['wrapper']['new']['#access'] = FALSE;
     }
 }
 
 function ousa_menu_alter(&$items) {
-//    foreach($items as $key => $data) {
-//        if(strpos($key,'content')) {
-//            dpm($key);
-//        }
-//    }
+    //    foreach($items as $key => $data) {
+    //        if(strpos($key,'content')) {
+    //            dpm($key);
+    //        }
+    //    }
 }
 
 function ousa_menu_link_alter(&$item, $menu) {
-//    if(strpos($item['link_path'], 'user')) {
-//    watchdog('debug',$item['link_path']);
-//    }
+    //    if(strpos($item['link_path'], 'user')) {
+    //    watchdog('debug',$item['link_path']);
+    //    }
     if($item['link_path'] == 'user/content') {
         $item['hidden'] = 1;
     }
@@ -42,21 +41,21 @@ function ousa_menu_link_alter(&$item, $menu) {
  * @param $files
  */
 function ousa_upload_attachments($files) {
-  $header = array(t('Attachment'), t('Date'), t('Size'));
-  $rows = array();
-//  dpm($files);
-//  dpm('here');
-  foreach ($files as $file) {
-      $file_link = theme('filefield_file', (array)$file);
-    $file = (object) $file;
-    if ($file->list && empty($file->remove)) {
-      $href = file_create_url($file->filepath);
-      $text = $file->description ? $file->description : $file->filename;
-//      $rows[] = array(l($text, $href), format_size($file->filesize));
-      $rows[] = array($file_link, date('n-j-Y',$file->timestamp), format_size($file->filesize));
+    $header = array(t('Attachment'), t('Date'), t('Size'));
+    $rows = array();
+    //  dpm($files);
+    //  dpm('here');
+    foreach ($files as $file) {
+        $file_link = theme('filefield_file', (array)$file);
+        $file = (object) $file;
+        if ($file->list && empty($file->remove)) {
+            $href = file_create_url($file->filepath);
+            $text = $file->description ? $file->description : $file->filename;
+            //      $rows[] = array(l($text, $href), format_size($file->filesize));
+            $rows[] = array($file_link, date('n-j-Y',$file->timestamp), format_size($file->filesize));
+        }
     }
-  }
-  if (count($rows)) {
-    return theme('table', $header, $rows, array('id' => 'attachments'));
-  }
+    if (count($rows)) {
+        return theme('table', $header, $rows, array('id' => 'attachments'));
+    }
 }
