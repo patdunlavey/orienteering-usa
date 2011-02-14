@@ -44,8 +44,8 @@ function ousa_menu_link_alter(&$item, $menu) {
 function ousa_upload_attachments($files) {
   $header = array(t('Attachment'), t('Date'), t('Size'));
   $rows = array();
-  dpm($files);
-  dpm('here');
+//  dpm($files);
+//  dpm('here');
   foreach ($files as $file) {
       $file_link = theme('filefield_file', (array)$file);
     $file = (object) $file;
