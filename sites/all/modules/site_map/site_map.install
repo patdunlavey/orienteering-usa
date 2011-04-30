@@ -1,0 +1,34 @@
+<?php
+
+/**
+ * @file
+ * The install and update code for the site_map module.
+ *
+ * @ingroup site_map
+ */
+
+/**
+ * Implementation of hook_uninstall().
+ */
+function site_map_uninstall() {
+  db_query("DELETE FROM {variable} WHERE name LIKE 'site_map_%'");
+}
+
+/**
+ * Delete no longer used variables.
+ */
+function site_map_update_6000() {
+  $ret = array();
+  $ret[] = update_sql("DELETE FROM {variable} WHERE name LIKE 'site_map_message_%'");
+  $ret[] = update_sql("DELETE FROM {variable} WHERE name LIKE 'site_map_show_menus_%'");
+  return $ret;
+}
+
+/**
+ * Change block caching mode.
+ */
+function site_map_update_6001() {
+  $ret = array();
+  $ret[] = update_sql("UPDATE {blocks} set cache = ". BLOCK_NO_CACHE ." WHERE module = 'site_map'");
+  return $ret;
+}
