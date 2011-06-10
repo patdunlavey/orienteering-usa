@@ -1,6 +1,4 @@
-#!/usr/local/bin/php.cli
 <?php
-// $Id: cron.php,v 1.36 2006/08/09 07:42:55 dries Exp $
 
 /**
  * @file
