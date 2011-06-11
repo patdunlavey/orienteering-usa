@@ -1,5 +1,4 @@
 <?php
-// $Id: tac_lite.module,v 1.9.2.20 2010/11/16 20:07:04 yogadex Exp $
 /**
  * @file
  *   Control access to site content based on taxonomy, roles and users.
@@ -252,7 +251,7 @@ function tac_lite_admin_scheme_form($form_state, $i) {
       foreach ($vids as $vid) {
         $v = $vocabularies[$vid];
         $form['tac_lite_grants_scheme_' . $i][$rid][$vid] =
-          _taxonomy_term_select($v->name,
+          _taxonomy_term_select(check_plain($v->name),
             NULL, // name no longer used in new form api
             isset($defaults[$vid]) ? $defaults[$vid] : NULL,
             $vid,
@@ -322,7 +321,7 @@ function tac_lite_user($op, $edit, $account, $category = NULL) {
               foreach ($vids as $vid) {
                 $v = $vocabularies[$vid];
                 $form['tac_lite'][$config['realm']][$vid] =
-                  _taxonomy_term_select($v->name,
+                  _taxonomy_term_select(check_plain($v->name),
                     NULL, // name no longer used in new form api
                     isset($terms[$vid]) ? $terms[$vid] : NULL,
                     $vid,
