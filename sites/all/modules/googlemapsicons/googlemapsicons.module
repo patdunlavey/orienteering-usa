@@ -1,0 +1,68 @@
+<?php
+
+/**
+ * @defgroup googlemapsicons Google Maps Icons: Provides icons for OpenLayers
+ */
+
+
+/**
+ * Implementation of hook_ctools_plugin_api().
+ */
+function googlemapsicons_ctools_plugin_api($module, $api) {
+  if ($module == "openlayers") {
+    switch ($api) {
+      case 'openlayers_styles':
+        return array('version' => 1);
+    }
+  }
+}
+
+/**
+ * OpenLayers pre-alpha3 compatibility
+ */
+function googlemapsicons_openlayers_styles_info() {
+  return googlemapsicons_openlayers_styles();
+}
+
+/**
+ * Implementation of hook_openlayers_styles()
+ */
+function googlemapsicons_openlayers_styles() {
+  return _googlemapsicons_openlayers_styles();
+}
+
+
+function _googlemapsicons_openlayers_styles() {
+  global $base_url;
+
+  $directory = drupal_get_path('module', 'googlemapsicons') . '/library';
+  $mask = '.png';
+  $files = file_scan_directory($directory, $mask, $nomask = array('.', '..', 'CVS'), $callback = 0, $recurse = TRUE, $key = 'filename', $min_depth = 0, $depth = 0);
+
+  foreach ($files as $file) {
+	$icon_templates[$file->basename] = $file->filename;
+  }
+
+  $styles = array();
+
+  foreach ($icon_templates as $icon_title => $icon_filepath) {
+    $icon_url = $base_url . '/' . $icon_filepath;
+    $directory = str_replace(drupal_get_path('module', 'googlemapsicons').'/library/', '', dirname($icon_filepath));
+    $icon_name = basename($icon_title, '.png');
+
+    $style = new stdClass();
+    $style->api_version = 1;
+    $style->name = $icon_name; 
+    $style->title = $icon_name;
+    $style->description = "<img src='{$icon_url}'/>".t('Google Maps Icons icon <br><i>'.$directory.'</i>');
+    $style->data = array(
+      'fillOpacity' => 1,
+      'externalGraphic' => $icon_url,
+      'pointRadius' => 7.5
+    );
+    $styles[$style->name] = $style;
+  }
+  return $styles;
+  
+
+}

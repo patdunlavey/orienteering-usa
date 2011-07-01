@@ -1,0 +1,22 @@
+This early stage module for D6. It let you add icons to OpenLayers maps in 2 clicks.
+
+To get it working:
+
+1) Create a directory 'library' in the module directory
+2) Drop in some directories containing icons:
+    Example:
+      - http://code.google.com/p/google-maps-icons/
+3) Your tree should look like:
+    /googlemapsicons
+      |
+      |-library
+          |
+          |-map-icons-collection-2.0
+              |
+              |-icons
+              |-numeric
+
+4) Enable the module
+5) go at url admin/build/openlayers/styles of your drupal sites and you should see all the icons like that: http://img713.imageshack.us/i/screenshot20110417at110.png/
+
+Notice: the styles page might be slow to load due to the huge amount of icons available in some sets.

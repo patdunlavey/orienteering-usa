@@ -1,0 +1,4 @@
+name = Google Maps Icons
+description = Icon Set from http://code.google.com/p/google-maps-icons/
+core = 6.x
+dependencies[] = openlayers
