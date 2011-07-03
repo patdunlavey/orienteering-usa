@@ -283,3 +283,16 @@ ul.sc_menu {background:none repeat scroll 0 0 #FFFFFF; display:block; height:128
 span>div.field-content {
 display:inline;
 }
+
+.openlayers-popup-name {
+  font-weight:bold;
+  font-size:1.1em;
+}
+
+.openlayers-popup-feature {
+  margin-bottom:10px;
+}
+
+.views-field {
+padding: 2px 6px;
+}
