@@ -9,141 +9,146 @@ function club_import_delete_clubs() {
   }
   $count = 0;
   foreach($club_nids as $club_nid) {
-    node_delete($club_nid);  
+    node_delete($club_nid);
     $count++;
   }
   drupal_set_message($count." clubs deleted");
 }
 
 function club_import_run_import() {
-$clubs = array(
-array("Arctic Orienteering Club","ARCT","c/o Trond Jensen","P.O. Box 241003","Anchorage, AK 99524-1003","61.22","-149.9","Anchorage","AK","99524-1003","907-344-2634","","Trond.B.Jensen@conocophillips.com","www.oalaska.org","","SANCTIONED_CLUB"),
-array("Vulcan Orienteering Club","VOC","c/o James Pilman","2875 Blackjack Rd.","Trussville, AL 35173","33.638062","-86.514586","Trussville","AL","35173","205-467-3315","","Ka4zqa@aol.com","vulcanorienteering.org","vulcanorienteering.org/index.php?page=links/permanentcourses","SANCTIONED_CLUB"),
-array("Forest Scouts Orienteering Organization","FSOO","c/o George Lyda","P.O. Box 727","Waldron AR 72958","34.8984323","-94.0907634","Waldron","AR","72958","479-637-5560","","georgelyda@centurytel.net","","","SANCTIONED_CLUB"),
-array("Greater Phoenix Orienteering Club","GPHXO","c/o Rockledge Services","P.O. Box 51114","Phoenix, AZ 85076-1114","33.35","-111.97","Phoenix","AZ","85076-1114","602-212-6741","","gphxoc@yahoo.com","gphxo.org","","SANCTIONED_CLUB"),
-array("Tucson Orienteering Club","TSN","P.O. Box 13012","","Tucson, AZ 85732","32.2299999","-110.88","Tucson","AZ","85732","520-628-8985","Peg Davis","pegdavis@U.Arizona.edu","www.tucsonorienteeringclub.org","www.tucsonorienteeringclub.org/index.php?option=com_content&view=article&id=41&Itemid=46","SANCTIONED_CLUB"),
-array("Bay Area Orienteering Club","BAOC","c/o Trinka Gillis","830 Sevely Drive","Mountain View, CA 94041","37.381243","-122.06028","Mountain View","CA","94041","650-248-9595","","president@baoc.org","baoc.org/wiki/Welcome","baoc.org/wiki/Maps/Permanent_Courses","SANCTIONED_CLUB"),
-array("Gold Country Orienteers","GCO","c/o Marsha Jacobs","2077 Fallen Leaf Lane","Lincoln, CA  95648","38.8615489","-121.263754","Lincoln","CA","95648","916-408-8052","","marsha@batnet.com","www.goldcountryorienteers.org/","","SANCTIONED_CLUB"),
-array("Los Angeles Orienteering Club","LAOC","c/o Rich Hoesly","812 Harness","Manhattan Beach, CA 90266","33.8908371","-118.3987842","Manhattan Beach","CA","90266","714-398-5220","Kim Pincus","President@losangelesorienteering.org","www.laorienteering.org/","","SANCTIONED_CLUB"),
-array("San Diego Orienteering","SDO","c/o Stan Watson","3673 Mount Aclare Ave.","San Diego CA 92111-4020","32.8085669","-117.179323","San Diego","CA","92111-4020","858-278-9463","","sdo_watson@yahoo.com","go.to/sdoc","","SANCTIONED_CLUB"),
-array("Rocky Mountain Orienteering Club","RMOC","c/o Bob Ellis","P.O. Box 237","Nederland, CO 80466","39.9613759","-105.5108312","Nederland","CO","80466","","","AskQuestions@rmoc.org","www.rmoc.org/","","SANCTIONED_CLUB"),
-array("Western Connecticut Orienteering Club","WCOC","c/o Rick and Susan DeWitt","67 Nashville Road Extension","Bethel, CT 06801","41.3520106","-73.398481","Bethel","CT","06801","203-743-6425","","wrdewitt@snet dot net","www.faculty.fairfield.edu/rdewitt/wcoc/","www.faculty.fairfield.edu/rdewitt/wcoc/Permanent%20Courses.html","SANCTIONED_CLUB"),
-array("Florida Orienteering Club","FLO","c/o Bob Putnam","955 Dyson Dr.","Winter Springs, FL 32708","28.660254","-81.262248","Winter Springs","FL","32708","407-366-9603","","bob@floridaorienteering.org","www.floridaorienteering.org/","","SANCTIONED_CLUB"),
-array("Georgia Orienteering Club","GAOC","c/o Steve Shannonhouse","4738 City View Dr.","Forest Park, GA 30297-1730","33.625664","-84.374202","Forest Park","GA","30297-1730","404-363-2110","","sshannonhouse@comcast.net","www.gaorienteering.org/","www.gaorienteering.org/Resources/permanent_courses.htm","SANCTIONED_CLUB"),
-array("City of Trees Orienteering Club","CTOC","c/o Andy Hill","8570 W. Atwater Dr.","Garden City, ID 83714","43.662117","-116.28844","Garden City","ID","83714","","","andy.hill@pobox.com","ctoc-boise.blogspot.com/","","SANCTIONED_CLUB"),
-array("Chicago Area Orienteering Club","CAOC","P.O. Box 369","","Mundelein, IL 60060-0369","42.263079","-88.0039653","Mundelein","IL","60060-0369","","","secretary@chicago-orienteering.org","www.chicago-orienteering.org/","","SANCTIONED_CLUB"),
-array("Chicago JROTC","CJROTC","c/o Major Roger Seymore, Phoenix Military Academy","145 S. Campbell Ave.","Chicago, IL 60612","41.8789175","-87.688388","Chicago","IL","60612","773-534-7275","","","","","SANCTIONED_CLUB"),
-array("Illinois River Valley Orienteering Club","IRVOC","c/o Fredrik Goransson","12201 N. Woodcrest Drive – Apt H","Dunlap, IL  61525","40.8358736","-89.6162981","Dunlap","IL","61525","309-222-4426","","president@il-orienteering.org","www.il-orienteering.org/","","SANCTIONED_CLUB"),
-array("Indiana Crossroads Orienteering","ICO","c/o Mike Garrison","9047 Holliday Drive","Indianapolis, IN 46260","39.919319","-86.162302","Indianapolis","IN","46260","","","mgarrison@indyo.org","www.indyo.org/","","SANCTIONED_CLUB"),
-array("Orienteer Kansas","OK","c/o Gene Wee","2223 Westchester Rd.","Lawrence, KS 66049-1635","38.983663","-95.262327","Lawrence","KS","66049-1635","785-318-6279","","maprunner@gmail.com","www.orienteerkansas.com/","","SANCTIONED_CLUB"),
-array("Possum Trot Orienteering Club","PTOC","c/o Richard Neuburger","12114 W. 101st St.","Lenexa, KS 66215-1964","38.946281","-94.725931","Lenexa","KS","66215-1964","913-888-1528","","Rneuberger@gmail.com","www.ptoc.org/","www.ptoc.org/htdocs/trimCrs.html","SANCTIONED_CLUB"),
-array("Orienteering Louisville","OLOU","P.O. Box 34062","c/o Jim Carter","Louisville, KY 40232","38.2","-85.7","Louisville","KY","40232","502-664-7420","","therunnerjc@bellsouth.net","www.olou.org/","","SANCTIONED_CLUB"),
-array("Cambridge Sports Union","CSU","c/o Larry Berman","23 Fayette St.","Cambridge MA 02139-1111","42.372379","-71.10374","Cambridge","MA","02139-1111","617-868-7416","","smlberman@verizon.net","csu.attackpoint.com/","","SANCTIONED_CLUB"),
-array("Susquehanna Valley Orienteering","SVO","c/o Brad Whitmore","20801 S. Ruhl Rd.","Freeland, MD 21053","39.6936969","-76.7225634","Freeland","MD","21053","","","whitmore@stsci.edu","www.furlong47.com/svo/","","SANCTIONED_CLUB"),
-array("Southern Michigan Orienteering Club","SMOC","c/o Mark Voit","1774 Spring Lake Dr.","Okemos, MI 48864","42.687058","-84.413051","Okemos","MI","48864","517-347-2927","","voit@pa.msu.edu  ","www.michigano.org/","www.michigano.org/permanent-course.htm","SANCTIONED_CLUB"),
-array("Minnesota Orienteering Club","MNOC","c/o Sam Meddaugh","1740 Kyllo Lane","Eagan, MN 55122","44.822635","-93.1899959","Eagan","MN","55122","651-779-6143","","maps@mnoc.org","www.mnoc.org/","www.mnoc.org/poc.shtml","SANCTIONED_CLUB"),
-array("St. Louis Orienteering Club","SLOC","c/o David Fisher","14415 Marmont Dr.","Chesterfield, MO 63017","38.67289","-90.52258","Chesterfield","MO","63017","314-434-5060","","","sloc.us.orienteering.org/SLOC2/Home.html","sloc.us.orienteering.org/SLOC2/Article_Beaumont.html","SANCTIONED_CLUB"),
-array("Backwoods Orienteering Klub","BOK","c/o Treklite","904 Dorothea Dr.","Raleigh, NC 27603","35.772174","-78.652759","Raleigh","NC","27603","919-828-6068","","joseph@treklite.com","backwoodsok.org/","","SANCTIONED_CLUB"),
-array("Carolina Orienteering Klub","COK","P.O. Box 2057","","Huntersville, NC 28070-2057","35.4099999","-80.84","Huntersville","NC","28070-2057","","","davidalexander1813@yahoo.com  ","www.carolina-ok.org/","","SANCTIONED_CLUB"),
-array("Up North Orienteers","UNO","c/o Deb Humiston","P.O. Box 974","Exeter, NH 03833","42.981477","-70.9478343","Exeter","NH","03833","","","dhumiston@gmail.com","www.upnoor.org/","www.upnoor.org/thomas/catamount.html","SANCTIONED_CLUB"),
-array("New Mexico Orienteers","NMO","c/o Gerald Boyd","9128 Surrey NE","Albuquerque, NM 87109","35.164551","-106.540251","Albuquerque","NM","87109","","","wb8wfk@att.net","www.nm-orienteers.org/","","SANCTIONED_CLUB"),
-array("Adirondack Orienteering Klub","AOK","c/o Nancy Allen","46 Maine Rd.","Plattsburgh, NY 12903","44.674812","-73.449644","Plattsburgh","NY","12903","518-563-5038","","nancy.allen@plattsburgh.edu","webpages.charter.net/aok/aok121409.htm","webpages.charter.net/aok/aok121409.htm","SANCTIONED_CLUB"),
-array("Buffalo Orienteering Club","BFLO","c/o Phillip Wolfling","263 Morris Ave","Buffalo, NY 14214","42.9422351","-78.8368284","Buffalo","NY","14214","","Lincoln Blaisdell linc43@roadrunner.com","pwolfling@peoplepc.com or","www.buffalo-orienteering.org/","http://www.buffalo-orienteering.org/map_hike.htm","SANCTIONED_CLUB"),
-array("Central New York Orienteering","CNYO","c/o Barb Sleight","6187 Smith Rd.","N. Syracuse, NY 13212-2513","43.138064","-76.092932","N. Syracuse","NY","13212-2513","315-458-6406","","bsleight@aol.com","cnyo.us.orienteering.org/","","SANCTIONED_CLUB"),
-array("Empire Orienteering Club","EMPO","P.O. Box 51","","Clifton Park, NY 12065","42.844668","-73.8183804","Clifton Park","NY","12065","518-872-1993","","empo@empo.us.orienteering.org","empo.us.orienteering.org/","","SANCTIONED_CLUB"),
-array("Hudson Valley Orienteering","HVO","P.O. Box 61","","Pleasantville, NY 10570","41.138069","-73.784709","Pleasantville","NY","10570","973-625-0499","","hvo-email@yahoogroups.com","hvo.us.orienteering.org/","hvo.us.orienteering.org/Content/pid=12.html#permanent_courses","SANCTIONED_CLUB"),
-array("Long Island Orienteering Club","LIOC","c/o John Pekarik","238 Loop Dr.","Sayville, NY 11782-1529","40.763273","-73.067266","Sayville","NY","11782-1529","","","JA171@aol.com","www.liorienteering.com/","","SANCTIONED_CLUB"),
-array("Rochester Orienteering Club","ROC","c/o Carol Moran","40 Erie Crescent","Fairport, NY 14450","43.091883","-77.454961","Fairport","NY","14450","585-377-5650","","RLShadow@aol.com","roc.us.orienteering.org/","roc.us.orienteering.org/permanent.shtml","SANCTIONED_CLUB"),
-array("U.S. Military Academy Orienteering Club","USMAOC","c/o Col. Mike Hendricks","Dept. of Geography and Environmental Engineering","West Point, NY 10996","41.39205","-73.9712488","West Point","NY","10996","","","michael.hendricks@usma.edu","www.dean.usma.edu/departments/geo/clubs/o_team/","","SANCTIONED_CLUB"),
-array("Central Ohio Orienteering","COO","c/o Alan Edmonds","1235 Treehaven Ln.","Columbus, OH 43204","39.929356","-83.087526","Columbus","OH","43204","614-877-0842","","krogers@columbus.rr.com","centralohioorienteers.org/","","SANCTIONED_CLUB"),
-array("Miami Valley Orienteering Club","MVOC","c/o Frederick Dudding","309 Patterson Rd.","Dayton, OH 45419-3934","39.725198","-84.165181","Dayton","OH","45419-3934","937-294-2228","","","www.mvoclub.org/","","SANCTIONED_CLUB"),
-array("North Eastern Ohio Orienteering Club","NEOOC","P.O. Box 5703","","Cleveland, OH 44101-0703","41.4909021","-81.6740449","Cleveland","OH","44101-0703","866-812-8316","","neooc_president@earthlink.net","www.neooc.com/","","SANCTIONED_CLUB"),
-array("Orienteering Club of Cincinnati","OCIN","c/o Pat Meehan","1306 Southern Hills Blvd.","Hamilton, OH 45013-3738","39.384697","-84.578522","Hamilton","OH","45013-3738","513-523-9279","Mike Minium","mikeminium@aol.com","www.ocin.org/","www.ocin.org/training/permanent_courses.html","SANCTIONED_CLUB"),
-array("Columbia River Orienteering Club","CROC","c/o Virginia Church","3434 SE Francis #D","Portland, OR 97202","45.4947633","-122.629617","Portland","OR","97202","503-230-9425","","email@croc.org","www.croc.org/","","SANCTIONED_CLUB"),
-array("Oregon Cascades Orienteering Klub","ORCA","c/o Jeff Watson","1473 N. 9th St.","Philomath, OR 97370","44.554856","-123.370258","Philomath","OR","97370","541-929-2038","","jeffnpaula@comcast.net","www.forestrunner.com/orca/","","SANCTIONED_CLUB"),
-array("Delaware Valley Orienteering Association","DVOA","c/o Mary Frank","14 Lake Dr.","Spring City, PA 19475-2721","40.1844139","-75.59059","Spring City","PA","19475-2721","610-792-0502","","frankdvoa@aol.com","www.dvoa.org/","www.dvoa.org/learn/perm/index.php","SANCTIONED_CLUB"),
-array("Western Pennsylvania Orienteering Club","WPOC","c/o James L. Wolfe","1904 Bates Dr.","Johnstown, PA 15905","40.3204502","-78.9589396","Johnstown","PA","15905","814-255-6066","","jlwolfe@atlanticbb.net","www.wpoc.org/","","SANCTIONED_CLUB"),
-array("Black Hills Orienteering Club","BHOC","c/o Bridget Machacek","1821 Palo Verde Dr","Rapid City SD 57701","44.067835","-103.241657","Rapid City","SD","57701","605-718-1417","","bridget@roamnaround.com","www.blackhillsorienteeringclub.com/","","SANCTIONED_CLUB"),
-array("ARK-LA-TEX Orienteering Society","ALTOS","c/o Paul Prince","7369 FM 999","Timpson, TX 75975","31.8263519","-94.398297","Timpson","TX","75975","903-898-2623","","pkprince@eastex.net","www.suddenlink.net/pages/jimhug/brochure.htm","","SANCTIONED_CLUB"),
-array("Austin Orienteering Club","AOC","c/o Radu Greavu","P.O. Box 5275","Round Rock, TX 78683","30.5","-97.65","Round Rock","TX","78683","512-825-3542","","radu.greavu@hotmail.com","www.austinoc.com/","","SANCTIONED_CLUB"),
-array("Houston Orienteering Club","HOC","P.O. Box 230251","","Houston, TX 77223","29.73","-95.3199999","Houston","TX","77223","832-771-5892","","hoc@hoc.us.orienteering.org","hoc.us.orienteering.org/","","SANCTIONED_CLUB"),
-array("North Texas Orienteering Association","NTOA","P.O. Box 824513","","Dallas, TX 75382","32.88","-96.75","Dallas","TX","75382","214-385-8622","Lisa Carr","president@ntoa.com","www.ntoa.com","","SANCTIONED_CLUB"),
-array("Orienteering Utah","OUTAH","c/o Suellen Riffkin","11607 S. 700 West","Draper, UT 84020","40.540836","-111.910322","Draper","UT","84020","","","sriffkin@aim.com","www.o-utah.org/","","SANCTIONED_CLUB"),
-array("Quantico Orienteering Club","QOC","Sid Sachs","8910 Yellow Daisy Place","Lorton, VA 22079","38.715812","-77.235354","Lorton","VA","22079","","","info@qocweb dot org","qoc.us.orienteering.org/","qoc.us.orienteering.org/content/permanent-courses","SANCTIONED_CLUB"),
-array("Green Mountain Orienteering Club","GMOC","c/o Carl Childs","240 Lefebvre Lane","Williston, VT 05495","44.438923","-73.062187","Williston","VT","05495","802-879-4968","","carlch@aol.com","www.gmoclub.org/","","SANCTIONED_CLUB"),
-array("Cascade Orienteering Club","COC","P.O. Box 31375","","Seattle, WA 98103-0375","47.6600087","-122.3425575","Seattle","WA","98103-0375","","","info@CascadeOC.org","www.cascadeoc.org/","www.cascadeoc.org/pages/local-permanent-orienteering-courses","SANCTIONED_CLUB"),
-array("Eastern Washington Orienteering Club","EWOC ","P.O. Box 944","","Spokane, WA 99210","47.6563789","-117.4249298","Spokane","WA","99210","509-838-7078","","","www.ewoc.org/","","SANCTIONED_CLUB"),
-array("Sammamish Orienteering Club","SAMM","c/o Dave Enger","11215 NE 59th Place","Kirkland, WA 98033","47.659857","-122.189099","Kirkland","WA","98033","425-822-6254","","","www.sammamishorienteering.org/","","SANCTIONED_CLUB"),
-array("Badger Orienteering Club","BGR","c/o Catherine Ann Yekenevicz","2330 Chestnut St., #35","West Bend, WI 53095-2989","43.422592","-88.2109349","West Bend","WI","53095-2989","262-335-3304","","kevin@chorus.net","userpages.chorus.net/kevin/","","SANCTIONED_CLUB"),
-array("Laramie Range Orienteering Club","LROC","c/o Mikell Platt","1151 Inca Drive","Laramie, WY 82072","41.3220447","-105.5484803","Laramie","WY","82072","307-721-9711","","mikell@wyoming.com","laramieorienteering.webs.com/","","SANCTIONED_CLUB"),
-array("New England Orienteering Club","NEOC","","","","","","","","","","Pete Lane pete.lane@comcast.net","info@newenglandorienteering.org","www.newenglandorienteering.org/","www.newenglandorienteering.org/index.php/mapped-venues/maps-permanent-courses","SANCTIONED_CLUB"),
-array("NYC Central Park","","","","","40.7654616","-73.9809827","New York","NY","10106","","","","www.treasurehuntadventures.com/","www.treasurehuntadventures.com/centralpark/","PERMANENT_COURSE"),
-array("The Outdoor Campus - East","","","4500 S. Oxbow Ave","Sioux Falls, SD 57106","43.5045765","-96.7659266","Sioux Falls","SD","57106","605-362-2777","","TOC@state.sd.us","gfp.sd.gov/outdoor-learning/outdoor-campus/default.aspx","gfp.sd.gov/outdoor-learning/outdoor-campus/default.aspx","PERMANENT_COURSE"),
-array("The Outdoor Campus - West","","","Sturgis Road","Rapid City, SD","44.1166608","-103.2942402","Rapid City","SD","57702","605-394-1753","","chad.tussing@state.sd.us","gfp.sd.gov/outdoor-learning/outdoor-campus/default.aspx","gfp.sd.gov/outdoor-learning/outdoor-campus/default.aspx","PERMANENT_COURSE"),
-array("Paris Landing State Park","","","16055 Hwy 79 N","Buchanan, TN 38222","36.4389531","-88.0835049","Buchanan","TN","38222","731-641-4465","","","www.stateparks.com/paris_landing.html","www.stateparks.com/paris_landing.html","PERMANENT_COURSE"),
-array("Motts Run Reservoir","","","River Road","Fredericksburg, PA 22407","38.3276217","-77.5658135","Fredericksburg","PA","22407","540-786-8989","","","http://www.fredericksburgva.gov/Departments/recreation/index.aspx?id=1121","http://www.fredericksburgva.gov/Departments/recreation/index.aspx?id=1121","PERMANENT_COURSE"),
-);
+  $clubs = array(
+  array("Arctic Orienteering Club","ARCT","c/o Trond Jensen","P.O. Box 241003","Anchorage, AK 99524-1003","61.22","-149.9","Anchorage","AK","99524-1003","907-344-2634","","Trond.B.Jensen@conocophillips.com","www.oalaska.org","","SANCTIONED_CLUB"),
+  array("Vulcan Orienteering Club","VOC","c/o James Pilman","2875 Blackjack Rd.","Trussville, AL 35173","33.638062","-86.514586","Trussville","AL","35173","205-467-3315","","Ka4zqa@aol.com","vulcanorienteering.org","vulcanorienteering.org/index.php?page=links/permanentcourses","SANCTIONED_CLUB"),
+  array("Forest Scouts Orienteering Organization","FSOO","c/o George Lyda","P.O. Box 727","Waldron AR 72958","34.8984323","-94.0907634","Waldron","AR","72958","479-637-5560","","georgelyda@centurytel.net","","","SANCTIONED_CLUB"),
+  array("Greater Phoenix Orienteering Club","GPHXO","c/o Rockledge Services","P.O. Box 51114","Phoenix, AZ 85076-1114","33.35","-111.97","Phoenix","AZ","85076-1114","602-212-6741","","gphxoc@yahoo.com","gphxo.org","","SANCTIONED_CLUB"),
+  array("Tucson Orienteering Club","TSN","P.O. Box 13012","","Tucson, AZ 85732","32.2299999","-110.88","Tucson","AZ","85732","520-628-8985","Peg Davis","pegdavis@U.Arizona.edu","www.tucsonorienteeringclub.org","www.tucsonorienteeringclub.org/index.php?option=com_content&view=article&id=41&Itemid=46","SANCTIONED_CLUB"),
+  array("Bay Area Orienteering Club","BAOC","c/o Trinka Gillis","830 Sevely Drive","Mountain View, CA 94041","37.381243","-122.06028","Mountain View","CA","94041","650-248-9595","","president@baoc.org","baoc.org/wiki/Welcome","baoc.org/wiki/Maps/Permanent_Courses","SANCTIONED_CLUB"),
+  array("Gold Country Orienteers","GCO","c/o Marsha Jacobs","2077 Fallen Leaf Lane","Lincoln, CA  95648","38.8615489","-121.263754","Lincoln","CA","95648","916-408-8052","","marsha@batnet.com","www.goldcountryorienteers.org/","","SANCTIONED_CLUB"),
+  array("Los Angeles Orienteering Club","LAOC","c/o Rich Hoesly","812 Harness","Manhattan Beach, CA 90266","33.8908371","-118.3987842","Manhattan Beach","CA","90266","714-398-5220","Kim Pincus","President@losangelesorienteering.org","www.laorienteering.org/","","SANCTIONED_CLUB"),
+  array("San Diego Orienteering","SDO","c/o Stan Watson","3673 Mount Aclare Ave.","San Diego CA 92111-4020","32.8085669","-117.179323","San Diego","CA","92111-4020","858-278-9463","","sdo_watson@yahoo.com","go.to/sdoc","","SANCTIONED_CLUB"),
+  array("Rocky Mountain Orienteering Club","RMOC","c/o Bob Ellis","P.O. Box 237","Nederland, CO 80466","39.9613759","-105.5108312","Nederland","CO","80466","","","AskQuestions@rmoc.org","www.rmoc.org/","","SANCTIONED_CLUB"),
+  array("Western Connecticut Orienteering Club","WCOC","c/o Rick and Susan DeWitt","67 Nashville Road Extension","Bethel, CT 06801","41.3520106","-73.398481","Bethel","CT","06801","203-743-6425","","wrdewitt@snet dot net","www.faculty.fairfield.edu/rdewitt/wcoc/","www.faculty.fairfield.edu/rdewitt/wcoc/Permanent%20Courses.html","SANCTIONED_CLUB"),
+  array("Florida Orienteering Club","FLO","c/o Bob Putnam","955 Dyson Dr.","Winter Springs, FL 32708","28.660254","-81.262248","Winter Springs","FL","32708","407-366-9603","","bob@floridaorienteering.org","www.floridaorienteering.org/","","SANCTIONED_CLUB"),
+  array("Georgia Orienteering Club","GAOC","c/o Steve Shannonhouse","4738 City View Dr.","Forest Park, GA 30297-1730","33.625664","-84.374202","Forest Park","GA","30297-1730","404-363-2110","","sshannonhouse@comcast.net","www.gaorienteering.org/","www.gaorienteering.org/Resources/permanent_courses.htm","SANCTIONED_CLUB"),
+  array("City of Trees Orienteering Club","CTOC","c/o Andy Hill","8570 W. Atwater Dr.","Garden City, ID 83714","43.662117","-116.28844","Garden City","ID","83714","","","andy.hill@pobox.com","ctoc-boise.blogspot.com/","","SANCTIONED_CLUB"),
+  array("Chicago Area Orienteering Club","CAOC","P.O. Box 369","","Mundelein, IL 60060-0369","42.263079","-88.0039653","Mundelein","IL","60060-0369","","","secretary@chicago-orienteering.org","www.chicago-orienteering.org/","","SANCTIONED_CLUB"),
+  array("Chicago JROTC","CJROTC","c/o Major Roger Seymore, Phoenix Military Academy","145 S. Campbell Ave.","Chicago, IL 60612","41.8789175","-87.688388","Chicago","IL","60612","773-534-7275","","","","","SANCTIONED_CLUB"),
+  array("Illinois River Valley Orienteering Club","IRVOC","c/o Fredrik Goransson","12201 N. Woodcrest Drive – Apt H","Dunlap, IL  61525","40.8358736","-89.6162981","Dunlap","IL","61525","309-222-4426","","president@il-orienteering.org","www.il-orienteering.org/","","SANCTIONED_CLUB"),
+  array("Indiana Crossroads Orienteering","ICO","c/o Mike Garrison","9047 Holliday Drive","Indianapolis, IN 46260","39.919319","-86.162302","Indianapolis","IN","46260","","","mgarrison@indyo.org","www.indyo.org/","","SANCTIONED_CLUB"),
+  array("Orienteer Kansas","OK","c/o Gene Wee","2223 Westchester Rd.","Lawrence, KS 66049-1635","38.983663","-95.262327","Lawrence","KS","66049-1635","785-318-6279","","maprunner@gmail.com","www.orienteerkansas.com/","","SANCTIONED_CLUB"),
+  array("Possum Trot Orienteering Club","PTOC","c/o Richard Neuburger","12114 W. 101st St.","Lenexa, KS 66215-1964","38.946281","-94.725931","Lenexa","KS","66215-1964","913-888-1528","","Rneuberger@gmail.com","www.ptoc.org/","www.ptoc.org/htdocs/trimCrs.html","SANCTIONED_CLUB"),
+  array("Orienteering Louisville","OLOU","P.O. Box 34062","c/o Jim Carter","Louisville, KY 40232","38.2","-85.7","Louisville","KY","40232","502-664-7420","","therunnerjc@bellsouth.net","www.olou.org/","","SANCTIONED_CLUB"),
+  array("Cambridge Sports Union","CSU","c/o Larry Berman","23 Fayette St.","Cambridge MA 02139-1111","42.372379","-71.10374","Cambridge","MA","02139-1111","617-868-7416","","smlberman@verizon.net","csu.attackpoint.com/","","SANCTIONED_CLUB"),
+  array("Susquehanna Valley Orienteering","SVO","c/o Brad Whitmore","20801 S. Ruhl Rd.","Freeland, MD 21053","39.6936969","-76.7225634","Freeland","MD","21053","","","whitmore@stsci.edu","www.furlong47.com/svo/","","SANCTIONED_CLUB"),
+  array("Southern Michigan Orienteering Club","SMOC","c/o Mark Voit","1774 Spring Lake Dr.","Okemos, MI 48864","42.687058","-84.413051","Okemos","MI","48864","517-347-2927","","voit@pa.msu.edu  ","www.michigano.org/","www.michigano.org/permanent-course.htm","SANCTIONED_CLUB"),
+  array("Minnesota Orienteering Club","MNOC","c/o Sam Meddaugh","1740 Kyllo Lane","Eagan, MN 55122","44.822635","-93.1899959","Eagan","MN","55122","651-779-6143","","maps@mnoc.org","www.mnoc.org/","www.mnoc.org/poc.shtml","SANCTIONED_CLUB"),
+  array("St. Louis Orienteering Club","SLOC","c/o David Fisher","14415 Marmont Dr.","Chesterfield, MO 63017","38.67289","-90.52258","Chesterfield","MO","63017","314-434-5060","","","sloc.us.orienteering.org/SLOC2/Home.html","sloc.us.orienteering.org/SLOC2/Article_Beaumont.html","SANCTIONED_CLUB"),
+  array("Backwoods Orienteering Klub","BOK","c/o Treklite","904 Dorothea Dr.","Raleigh, NC 27603","35.772174","-78.652759","Raleigh","NC","27603","919-828-6068","","joseph@treklite.com","backwoodsok.org/","","SANCTIONED_CLUB"),
+  array("Carolina Orienteering Klub","COK","P.O. Box 2057","","Huntersville, NC 28070-2057","35.4099999","-80.84","Huntersville","NC","28070-2057","","","davidalexander1813@yahoo.com  ","www.carolina-ok.org/","","SANCTIONED_CLUB"),
+  array("Up North Orienteers","UNO","c/o Deb Humiston","P.O. Box 974","Exeter, NH 03833","42.981477","-70.9478343","Exeter","NH","03833","","","dhumiston@gmail.com","www.upnoor.org/","www.upnoor.org/thomas/catamount.html","SANCTIONED_CLUB"),
+  array("New Mexico Orienteers","NMO","c/o Gerald Boyd","9128 Surrey NE","Albuquerque, NM 87109","35.164551","-106.540251","Albuquerque","NM","87109","","","wb8wfk@att.net","www.nm-orienteers.org/","","SANCTIONED_CLUB"),
+  array("Adirondack Orienteering Klub","AOK","c/o Nancy Allen","46 Maine Rd.","Plattsburgh, NY 12903","44.674812","-73.449644","Plattsburgh","NY","12903","518-563-5038","","nancy.allen@plattsburgh.edu","webpages.charter.net/aok/aok121409.htm","webpages.charter.net/aok/aok121409.htm","SANCTIONED_CLUB"),
+  array("Buffalo Orienteering Club","BFLO","c/o Phillip Wolfling","263 Morris Ave","Buffalo, NY 14214","42.9422351","-78.8368284","Buffalo","NY","14214","","Lincoln Blaisdell linc43@roadrunner.com","pwolfling@peoplepc.com or","www.buffalo-orienteering.org/","http://www.buffalo-orienteering.org/map_hike.htm","SANCTIONED_CLUB"),
+  array("Central New York Orienteering","CNYO","c/o Barb Sleight","6187 Smith Rd.","N. Syracuse, NY 13212-2513","43.138064","-76.092932","N. Syracuse","NY","13212-2513","315-458-6406","","bsleight@aol.com","cnyo.us.orienteering.org/","","SANCTIONED_CLUB"),
+  array("Empire Orienteering Club","EMPO","P.O. Box 51","","Clifton Park, NY 12065","42.844668","-73.8183804","Clifton Park","NY","12065","518-872-1993","","empo@empo.us.orienteering.org","empo.us.orienteering.org/","","SANCTIONED_CLUB"),
+  array("Hudson Valley Orienteering","HVO","P.O. Box 61","","Pleasantville, NY 10570","41.138069","-73.784709","Pleasantville","NY","10570","973-625-0499","","hvo-email@yahoogroups.com","hvo.us.orienteering.org/","hvo.us.orienteering.org/Content/pid=12.html#permanent_courses","SANCTIONED_CLUB"),
+  array("Long Island Orienteering Club","LIOC","c/o John Pekarik","238 Loop Dr.","Sayville, NY 11782-1529","40.763273","-73.067266","Sayville","NY","11782-1529","","","JA171@aol.com","www.liorienteering.com/","","SANCTIONED_CLUB"),
+  array("Rochester Orienteering Club","ROC","c/o Carol Moran","40 Erie Crescent","Fairport, NY 14450","43.091883","-77.454961","Fairport","NY","14450","585-377-5650","","RLShadow@aol.com","roc.us.orienteering.org/","roc.us.orienteering.org/permanent.shtml","SANCTIONED_CLUB"),
+  array("U.S. Military Academy Orienteering Club","USMAOC","c/o Col. Mike Hendricks","Dept. of Geography and Environmental Engineering","West Point, NY 10996","41.39205","-73.9712488","West Point","NY","10996","","","michael.hendricks@usma.edu","www.dean.usma.edu/departments/geo/clubs/o_team/","","SANCTIONED_CLUB"),
+  array("Central Ohio Orienteering","COO","c/o Alan Edmonds","1235 Treehaven Ln.","Columbus, OH 43204","39.929356","-83.087526","Columbus","OH","43204","614-877-0842","","krogers@columbus.rr.com","centralohioorienteers.org/","","SANCTIONED_CLUB"),
+  array("Miami Valley Orienteering Club","MVOC","c/o Frederick Dudding","309 Patterson Rd.","Dayton, OH 45419-3934","39.725198","-84.165181","Dayton","OH","45419-3934","937-294-2228","","","www.mvoclub.org/","","SANCTIONED_CLUB"),
+  array("North Eastern Ohio Orienteering Club","NEOOC","P.O. Box 5703","","Cleveland, OH 44101-0703","41.4909021","-81.6740449","Cleveland","OH","44101-0703","866-812-8316","","neooc_president@earthlink.net","www.neooc.com/","","SANCTIONED_CLUB"),
+  array("Orienteering Club of Cincinnati","OCIN","c/o Pat Meehan","1306 Southern Hills Blvd.","Hamilton, OH 45013-3738","39.384697","-84.578522","Hamilton","OH","45013-3738","513-523-9279","Mike Minium","mikeminium@aol.com","www.ocin.org/","www.ocin.org/training/permanent_courses.html","SANCTIONED_CLUB"),
+  array("Columbia River Orienteering Club","CROC","c/o Virginia Church","3434 SE Francis #D","Portland, OR 97202","45.4947633","-122.629617","Portland","OR","97202","503-230-9425","","email@croc.org","www.croc.org/","","SANCTIONED_CLUB"),
+  array("Oregon Cascades Orienteering Klub","ORCA","c/o Jeff Watson","1473 N. 9th St.","Philomath, OR 97370","44.554856","-123.370258","Philomath","OR","97370","541-929-2038","","jeffnpaula@comcast.net","www.forestrunner.com/orca/","","SANCTIONED_CLUB"),
+  array("Delaware Valley Orienteering Association","DVOA","c/o Mary Frank","14 Lake Dr.","Spring City, PA 19475-2721","40.1844139","-75.59059","Spring City","PA","19475-2721","610-792-0502","","frankdvoa@aol.com","www.dvoa.org/","www.dvoa.org/learn/perm/index.php","SANCTIONED_CLUB"),
+  array("Western Pennsylvania Orienteering Club","WPOC","c/o James L. Wolfe","1904 Bates Dr.","Johnstown, PA 15905","40.3204502","-78.9589396","Johnstown","PA","15905","814-255-6066","","jlwolfe@atlanticbb.net","www.wpoc.org/","","SANCTIONED_CLUB"),
+  array("Black Hills Orienteering Club","BHOC","c/o Bridget Machacek","1821 Palo Verde Dr","Rapid City SD 57701","44.067835","-103.241657","Rapid City","SD","57701","605-718-1417","","bridget@roamnaround.com","www.blackhillsorienteeringclub.com/","","SANCTIONED_CLUB"),
+  array("ARK-LA-TEX Orienteering Society","ALTOS","c/o Paul Prince","7369 FM 999","Timpson, TX 75975","31.8263519","-94.398297","Timpson","TX","75975","903-898-2623","","pkprince@eastex.net","www.suddenlink.net/pages/jimhug/brochure.htm","","SANCTIONED_CLUB"),
+  array("Austin Orienteering Club","AOC","c/o Radu Greavu","P.O. Box 5275","Round Rock, TX 78683","30.5","-97.65","Round Rock","TX","78683","512-825-3542","","radu.greavu@hotmail.com","www.austinoc.com/","","SANCTIONED_CLUB"),
+  array("Houston Orienteering Club","HOC","P.O. Box 230251","","Houston, TX 77223","29.73","-95.3199999","Houston","TX","77223","832-771-5892","","hoc@hoc.us.orienteering.org","hoc.us.orienteering.org/","","SANCTIONED_CLUB"),
+  array("North Texas Orienteering Association","NTOA","P.O. Box 824513","","Dallas, TX 75382","32.88","-96.75","Dallas","TX","75382","214-385-8622","Lisa Carr","president@ntoa.com","www.ntoa.com","","SANCTIONED_CLUB"),
+  array("Orienteering Utah","OUTAH","c/o Suellen Riffkin","11607 S. 700 West","Draper, UT 84020","40.540836","-111.910322","Draper","UT","84020","","","sriffkin@aim.com","www.o-utah.org/","","SANCTIONED_CLUB"),
+  array("Quantico Orienteering Club","QOC","Sid Sachs","8910 Yellow Daisy Place","Lorton, VA 22079","38.715812","-77.235354","Lorton","VA","22079","","","info@qocweb dot org","qoc.us.orienteering.org/","qoc.us.orienteering.org/content/permanent-courses","SANCTIONED_CLUB"),
+  array("Green Mountain Orienteering Club","GMOC","c/o Carl Childs","240 Lefebvre Lane","Williston, VT 05495","44.438923","-73.062187","Williston","VT","05495","802-879-4968","","carlch@aol.com","www.gmoclub.org/","","SANCTIONED_CLUB"),
+  array("Cascade Orienteering Club","COC","P.O. Box 31375","","Seattle, WA 98103-0375","47.6600087","-122.3425575","Seattle","WA","98103-0375","","","info@CascadeOC.org","www.cascadeoc.org/","www.cascadeoc.org/pages/local-permanent-orienteering-courses","SANCTIONED_CLUB"),
+  array("Eastern Washington Orienteering Club","EWOC ","P.O. Box 944","","Spokane, WA 99210","47.6563789","-117.4249298","Spokane","WA","99210","509-838-7078","","","www.ewoc.org/","","SANCTIONED_CLUB"),
+  array("Sammamish Orienteering Club","SAMM","c/o Dave Enger","11215 NE 59th Place","Kirkland, WA 98033","47.659857","-122.189099","Kirkland","WA","98033","425-822-6254","","","www.sammamishorienteering.org/","","SANCTIONED_CLUB"),
+  array("Badger Orienteering Club","BGR","c/o Catherine Ann Yekenevicz","2330 Chestnut St., #35","West Bend, WI 53095-2989","43.422592","-88.2109349","West Bend","WI","53095-2989","262-335-3304","","kevin@chorus.net","userpages.chorus.net/kevin/","","SANCTIONED_CLUB"),
+  array("Laramie Range Orienteering Club","LROC","c/o Mikell Platt","1151 Inca Drive","Laramie, WY 82072","41.3220447","-105.5484803","Laramie","WY","82072","307-721-9711","","mikell@wyoming.com","laramieorienteering.webs.com/","","SANCTIONED_CLUB"),
+  array("New England Orienteering Club","NEOC","","","","","","","","","","Pete Lane pete.lane@comcast.net","info@newenglandorienteering.org","www.newenglandorienteering.org/","www.newenglandorienteering.org/index.php/mapped-venues/maps-permanent-courses","SANCTIONED_CLUB"),
+  array("NYC Central Park","","","","","40.7654616","-73.9809827","New York","NY","10106","","","","www.treasurehuntadventures.com/","www.treasurehuntadventures.com/centralpark/","PERMANENT_COURSE"),
+  array("The Outdoor Campus - East","","","4500 S. Oxbow Ave","Sioux Falls, SD 57106","43.5045765","-96.7659266","Sioux Falls","SD","57106","605-362-2777","","TOC@state.sd.us","gfp.sd.gov/outdoor-learning/outdoor-campus/default.aspx","gfp.sd.gov/outdoor-learning/outdoor-campus/default.aspx","PERMANENT_COURSE"),
+  array("The Outdoor Campus - West","","","Sturgis Road","Rapid City, SD","44.1166608","-103.2942402","Rapid City","SD","57702","605-394-1753","","chad.tussing@state.sd.us","gfp.sd.gov/outdoor-learning/outdoor-campus/default.aspx","gfp.sd.gov/outdoor-learning/outdoor-campus/default.aspx","PERMANENT_COURSE"),
+  array("Paris Landing State Park","","","16055 Hwy 79 N","Buchanan, TN 38222","36.4389531","-88.0835049","Buchanan","TN","38222","731-641-4465","","","www.stateparks.com/paris_landing.html","www.stateparks.com/paris_landing.html","PERMANENT_COURSE"),
+  array("Motts Run Reservoir","","","River Road","Fredericksburg, PA 22407","38.3276217","-77.5658135","Fredericksburg","PA","22407","540-786-8989","","","http://www.fredericksburgva.gov/Departments/recreation/index.aspx?id=1121","http://www.fredericksburgva.gov/Departments/recreation/index.aspx?id=1121","PERMANENT_COURSE"),
+  );
+  $nodes = array();
+  foreach($clubs as $club) {
+    $node = new stdClass();
+    $node->type = 'club';
+    $node->uid = 1;
+    $node->vid = 1;
+    $node->status = 1;
+    $node->comment = 0;
+    $node->promote = 0;
 
-foreach($clubs as $club) {
-  $node = new stdClass();
-  $node->type = 'club';
-  $node->uid = 1;
-  $node->vid = 1;
-  $node->status = 1;
-  $node->comment = 0;
-  $node->promote = 0;
-  
-  $node->title = $club[0];
-  if(strlen($club[13])>0) {
-  $node->field_club_home_page[0]['url'] = $club[13];
-  $node->field_club_home_page[0]['attributes'] = array();
-}
-if(strlen($club[6])>0 && strlen($club[5])>0 ) {
-  $node->field_openlayers_location[0]['openlayers_wkt'] = 'GEOMETRYCOLLECTION(POINT('.$club[6].' '.$club[5].'))';
-}
-  $address_elements = array();
-  for($i = 2; $i <=3; $i++) {
-  if(strlen($club[$i])>0) { 
-    $address_elements[] = $club[$i];
+    $node->title = $club[0];
+    if(strlen($club[13])>0) {
+      $node->field_club_home_page[0]['url'] = $club[13];
+      $node->field_club_home_page[0]['attributes'] = array();
     }
-  }
-  if(count($address_elements)) {
-  $node->field_address[0]['value'] = implode('<br>',$address_elements);
-  $node->field_address[0]['format'] = 2;
-}
-if(strlen($club[1])>0) {
-  $node->field_club_abbreviation[0]['value'] = $club[1];
-}
+    if(strlen($club[6])>0 && strlen($club[5])>0 ) {
+      $node->field_openlayers_location[0]['openlayers_wkt'] = 'GEOMETRYCOLLECTION(POINT('.$club[6].' '.$club[5].'))';
+    }
+    $address_elements = array();
+    for($i = 2; $i <=3; $i++) {
+      if(strlen($club[$i])>0) {
+        $address_elements[] = $club[$i];
+      }
+    }
+    if(count($address_elements)) {
+      $node->field_address[0]['value'] = implode('<br>',$address_elements);
+      $node->field_address[0]['format'] = 2;
+    }
+    if(strlen($club[1])>0) {
+      $node->field_club_abbreviation[0]['value'] = $club[1];
+    }
 
-if(strlen($club[7])>0) {
-  $node->field_city[0]['value'] = $club[7];
-}
-if(strlen($club[8])>0) {
-  $node->field_state[0]['value'] = $club[8];
-}
-if(strlen($club[9])>0) {
-  $node->field_zip[0]['value'] = $club[9];
-}
-if(strlen($club[10])>0) {
-  $node->field_club_phone[0]['value'] = $club[10];
-}
-if(strlen($club[14])>0) {
-  $node->field_permanent_course_link[0]['url'] = $club[14];
-  $node->field_permanent_course_link[0]['attributes'] = array();
-}
-if(strlen($club[15])>0) {
-  $node->field_org_type[0]['value'] = $club[15];
-}
-//dpm($node);
-node_save($node);
-//return;  
-}
+    if(strlen($club[7])>0) {
+      $node->field_city[0]['value'] = $club[7];
+    }
+    if(strlen($club[8])>0) {
+      $node->field_state[0]['value'] = $club[8];
+    }
+    if(strlen($club[9])>0) {
+      $node->field_zip[0]['value'] = $club[9];
+    }
+    if(strlen($club[10])>0) {
+      $node->field_club_phone[0]['value'] = $club[10];
+    }
+    if(strlen($club[12])>0) {
+      $node->field_email[0]['email'] = $club[12];
+    }
+    if(strlen($club[14])>0) {
+      $node->field_permanent_course_link[0]['url'] = $club[14];
+      $node->field_permanent_course_link[0]['attributes'] = array();
+    }
+    if(strlen($club[15])>0) {
+      $node->field_org_type[0]['value'] = $club[15];
+    }
+    //$nodes[] = $node;
+    //dpm($node);
+    //return;
+    node_save($node);
+  }
+  //dpm($nodes);
 }
 
 
 /**
-* Implements hook_openlayers_styles().
-*/
+ * Implements hook_openlayers_styles().
+ */
 function club_import_openlayers_styles() {
   $styles = array();
   $style = new stdClass();
@@ -181,49 +186,49 @@ function club_import_openlayers_presets() {
       'initial' => array(
         'centerpoint' => '-98.525390621114, 40.178873313004',
         'zoom' => '3',
-      ),
+  ),
       'restrict' => array(
         'restrictextent' => 0,
         'restrictedExtent' => '-14333471.541471,2817774.6102,-7132491.982071,6476968.027612',
-      ),
-    ),
+  ),
+  ),
     'behaviors' => array(
       'openlayers_behavior_attribution' => array(),
       'openlayers_behavior_popup' => array(
         'layers' => array(
           'club_locations_data_openlayers_1' => 'club_locations_data_openlayers_1',
-        ),
-      ),
+  ),
+  ),
       'openlayers_behavior_keyboarddefaults' => array(),
       'openlayers_behavior_navigation' => array(
         'zoomWheelEnabled' => 0,
-      ),
+  ),
       'openlayers_behavior_panzoombar' => array(),
       'openlayers_behavior_cluster' => array(
         'clusterlayer' => array(
           'club_locations_data_openlayers_1' => 'club_locations_data_openlayers_1',
-        ),
+  ),
         'distance' => '10',
         'threshold' => '',
-      ),
-    ),
+  ),
+  ),
     'default_layer' => 'osm_mapnik',
     'layers' => array(
       'osm_mapnik' => 'osm_mapnik',
       'club_locations_data_openlayers_1' => 'club_locations_data_openlayers_1',
-    ),
+  ),
     'layer_styles' => array(),
     'layer_activated' => array(),
     'layer_switcher' => array(
       'club_locations_data_openlayers_1' => 'club_locations_data_openlayers_1',
-    ),
+  ),
     'projection' => '900913',
     'displayProjection' => '4326',
     'styles' => array(
       'default' => 'blah_ousa',
       'select' => 'blah_ousa',
       'temporary' => 'blah_ousa',
-    ),
+  ),
     'preset_name' => 'blah_ousa',
   );
   $items["blah_ousa"] = $openlayers_presets;
@@ -231,15 +236,15 @@ function club_import_openlayers_presets() {
 }
 
 /**
-* Implements hook_ctools_plugin_api().
-*/
+ * Implements hook_ctools_plugin_api().
+ */
 function club_import_ctools_plugin_api($module, $api) {
   if ($module == "openlayers") {
     switch ($api) {
       case 'openlayers_styles':
         return array('version' => 1);
-        case 'openlayers_presets':
-          return array('version' => 1);
+      case 'openlayers_presets':
+        return array('version' => 1);
 
     }
   }
