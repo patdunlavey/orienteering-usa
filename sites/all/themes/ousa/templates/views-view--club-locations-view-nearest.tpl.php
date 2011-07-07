@@ -41,7 +41,7 @@ $(document).ready(function(){
 </script>  
 <script language="javascript" charset="charset=utf-8">
 $(document).ready(function(){
-$("#views-exposed-form-club-locations-view-nearest-page-1").submit();
+$("#views-exposed-form-club-locations-view-nearest-page-1--disabled").submit();
 });
 </script> 
 <div class="<?php print $classes; ?>">
