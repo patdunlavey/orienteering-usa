@@ -85,10 +85,10 @@ function ousa_theme(&$existing, $type, $theme, $path) {
  *   The name of the template being rendered (name of the .tpl.php file.)
  */
 /* -- Delete this line if you want to use this function
-function STARTERKIT_preprocess(&$vars, $hook) {
-  $vars['sample_variable'] = t('Lorem ipsum.');
-}
-// */
+ function STARTERKIT_preprocess(&$vars, $hook) {
+ $vars['sample_variable'] = t('Lorem ipsum.');
+ }
+ // */
 
 /**
  * Override or insert variables into the page templates.
@@ -99,10 +99,10 @@ function STARTERKIT_preprocess(&$vars, $hook) {
  *   The name of the template being rendered ("page" in this case.)
  */
 /* -- Delete this line if you want to use this function
-function STARTERKIT_preprocess_page(&$vars, $hook) {
-  $vars['sample_variable'] = t('Lorem ipsum.');
-}
-// */
+ function STARTERKIT_preprocess_page(&$vars, $hook) {
+ $vars['sample_variable'] = t('Lorem ipsum.');
+ }
+ // */
 
 /**
  * Override or insert variables into the node templates.
@@ -113,17 +113,17 @@ function STARTERKIT_preprocess_page(&$vars, $hook) {
  *   The name of the template being rendered ("node" in this case.)
  */
 /* -- Delete this line if you want to use this function
-function STARTERKIT_preprocess_node(&$vars, $hook) {
-  $vars['sample_variable'] = t('Lorem ipsum.');
+ function STARTERKIT_preprocess_node(&$vars, $hook) {
+ $vars['sample_variable'] = t('Lorem ipsum.');
 
-  // Optionally, run node-type-specific preprocess functions, like
-  // STARTERKIT_preprocess_node_page() or STARTERKIT_preprocess_node_story().
-  $function = __FUNCTION__ . '_' . $vars['node']->type;
-  if (function_exists($function)) {
-    $function($vars, $hook);
-  }
-}
-// */
+ // Optionally, run node-type-specific preprocess functions, like
+ // STARTERKIT_preprocess_node_page() or STARTERKIT_preprocess_node_story().
+ $function = __FUNCTION__ . '_' . $vars['node']->type;
+ if (function_exists($function)) {
+ $function($vars, $hook);
+ }
+ }
+ // */
 
 /**
  * Override or insert variables into the comment templates.
@@ -134,10 +134,10 @@ function STARTERKIT_preprocess_node(&$vars, $hook) {
  *   The name of the template being rendered ("comment" in this case.)
  */
 /* -- Delete this line if you want to use this function
-function STARTERKIT_preprocess_comment(&$vars, $hook) {
-  $vars['sample_variable'] = t('Lorem ipsum.');
-}
-// */
+ function STARTERKIT_preprocess_comment(&$vars, $hook) {
+ $vars['sample_variable'] = t('Lorem ipsum.');
+ }
+ // */
 
 /**
  * Override or insert variables into the block templates.
@@ -148,10 +148,10 @@ function STARTERKIT_preprocess_comment(&$vars, $hook) {
  *   The name of the template being rendered ("block" in this case.)
  */
 /* -- Delete this line if you want to use this function
-function STARTERKIT_preprocess_block(&$vars, $hook) {
-  $vars['sample_variable'] = t('Lorem ipsum.');
-}
-// */
+ function STARTERKIT_preprocess_block(&$vars, $hook) {
+ $vars['sample_variable'] = t('Lorem ipsum.');
+ }
+ // */
 
 
 function phptemplate_views_summary_archive($view, $type, $level, $nodes, $args) {
@@ -165,41 +165,61 @@ function phptemplate_views_summary_archive($view, $type, $level, $nodes, $args) 
 }
 
 /**
-*Adding or modifying variables before page render.
-*/
-function phptemplate_preprocess_page(&$vars) {
-	//Page change based on node -> type
-	//Figure out if the node type has a matching page
-	//Note: $vars['node] is available when the page is focused on a
-	
-    if (isset($vars['node'])) {
-		//Add templage naming suggestion. It should always use hyphens.
-		$vars['template_files'][] = 'page-'. str_replace('_', '-', $vars['node']->type);
-	}
-	
-	//dpm($vars);
+ *Adding or modifying variables before page render.
+ */
+function phptemplate_preprocess_page (&$vars) {
+  if($vars['node']->type == 'club' && strlen($vars['node']->field_club_abbreviation[0]['view'])>0) {
+    $vars['title'] = $vars['title']." (".$vars['node']->field_club_abbreviation[0]['view'].")";
+  }
 }
 
 function phptemplate_preprocess_block(&$variables) {
 
-    $block = &$variables['block'];
+  $block = &$variables['block'];
 
-    if ($block->module == 'advancedbookblocks') {
-        $node = menu_get_object();
-        $toplevel[] = $node->book['bid'];
-        if (!empty($toplevel)) {
-            $tree = recursive_book_array_builder($toplevel);
-            // get subtree  to have that option, also get node title of book root and put it into the block title
-            foreach($tree as $branch) {
-                $block->subject = $branch['link']['title'];
-                $newtree = $branch['below'];
-                break;
-            }
-            $trail = book_trail_builder();
-            if (empty($trail)) $trail = array();
-            // use $newtree instead of $tree if you want to only show links for subpages of the top page
-            $block->content = theme('menu_creation_by_array', $tree, $trail);
-        }
+  if ($block->module == 'advancedbookblocks') {
+    $node = menu_get_object();
+    $toplevel[] = $node->book['bid'];
+    if (!empty($toplevel)) {
+      $tree = recursive_book_array_builder($toplevel);
+      // get subtree  to have that option, also get node title of book root and put it into the block title
+      foreach($tree as $branch) {
+        $block->subject = $branch['link']['title'];
+        $newtree = $branch['below'];
+        break;
+      }
+      $trail = book_trail_builder();
+      if (empty($trail)) $trail = array();
+      // use $newtree instead of $tree if you want to only show links for subpages of the top page
+      $block->content = theme('menu_creation_by_array', $tree, $trail);
     }
+  }
 
 }
+
+/**
+ * Override or insert variables into the node templates.
+ *
+ * @param $vars
+ *   An array of variables to pass to the theme template.
+ * @param $hook
+ *   The name of the template being rendered ("node" in this case.)
+ */
+function phptemplate_preprocess_node(&$vars, $hook) {
+
+  //  $vars['sample_variable'] = t('Lorem ipsum.');
+  //
+  //  // Optionally, run node-type-specific preprocess functions, like
+  //  // STARTERKIT_preprocess_node_page() or STARTERKIT_preprocess_node_story().
+  //  $function = __FUNCTION__ . '_' . $vars['node']->type;
+  //  if (function_exists($function)) {
+  //    $function($vars, $hook);
+  //  }
+  switch($vars['type']) {
+    case 'club':
+      break;
+    default:
+      break;
+  }
+}
+
