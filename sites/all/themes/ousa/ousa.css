@@ -301,6 +301,7 @@ padding: 2px 6px;
 
 .club_left_column {
 	float:left;
+	width:380px;
 }
 
 .club_location_map {
@@ -349,4 +350,12 @@ border:1px dotted #73aeff;
 
 .view-clubs-all .views-field-nothing .field-content p {
     margin: 0 0 -1.5em;
+}
+
+.node-type-club .club_states_active {
+	font-style:italic;
+}
+
+.node-type-club .item {
+	margin-bottom:6px;
 }

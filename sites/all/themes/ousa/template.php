@@ -217,6 +217,21 @@ function phptemplate_preprocess_node(&$vars, $hook) {
   //  }
   switch($vars['type']) {
     case 'club':
+      $count_states = count($vars['field_club_states_active']);
+      if($count_states) {
+        $states = array();
+        foreach($vars['field_club_states_active'] as $key => $state) {
+          if(is_int($key)) {
+            $states[] = $state['view'];
+          }
+        }
+        $last_state = array_pop($states);
+        if($count_states > 1 ) {
+          $state_string = implode(', ', $states) . ' and ';
+        }
+        $state_string .= $last_state;
+        $vars['field_club_states_active']['view_string'] = $state_string;
+      }
       break;
     default:
       break;

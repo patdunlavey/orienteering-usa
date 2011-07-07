@@ -110,22 +110,39 @@
   <?php //dpm($node); ?>
   <div class="content">
   <div class="club_left_column">
-  <div class="club_address">
+  <?php if ($field_club_states_active['view_string']):?>
+  <div class="item club_states_active">
+  <?php print "Active in ". $field_club_states_active['view_string']; ?>
+  </div>
+  <?php endif; ?>
+  
+  <div class="item club_address">
   <?php print "<div>". $node->field_address[0]['view'] . "</div><div>" . $node->field_city[0]['view'] . ", " . $node->field_state[0]['view'] . " " . $node->field_zip[0]['view'] ."</div>"; ?>
   </div>
   <?php if ($node->field_club_phone[0]['view']):?>
-  <div class="club_phone">
-  <?php print $node->field_club_phone[0]['view']; ?>
+  <div class="item club_phone">
+  <?php print "Phone: " . $node->field_club_phone[0]['view']; ?>
+  </div>
+  <?php endif; ?>
+  
+  <?php if ($node->field_club_home_page[0]['view']):?>
+  <div class="item club_home_page">
+  <?php print $node->field_club_home_page[0]['view']; ?>
   </div>
   <?php endif; ?>
   <?php if ($node->field_email[0]['view']):?>
-  <div class="club_email">
+  <div class="item club_email">
   <?php print $node->field_email[0]['view']; ?>
   </div>
   <?php endif; ?>
   <?php if ($node->field_permanent_course_link[0]['view']):?>
-  <div class="club_permanent_course_link">
-  <a href = "<?php print $node->field_permanent_course_link[0]['url']; ?>" target="_blank"><img src ="/sites/default/files/images/permcourse.gif"></img> Permanent course information available</a>
+  <div class="item club_permanent_course_link">
+  <a href = "<?php print $node->field_permanent_course_link[0]['url']; ?>" target="_blank" title="Permanent course information is available"><img src ="/sites/default/files/images/permcourse.gif"></img></a>
+  </div>
+  <?php endif; ?>
+  <?php if ($node->content['body']['#value']):?>
+  <div class="club_body">
+  <?php print $node->content['body']['#value']; ?>
   </div>
   <?php endif; ?>
   </div>
