@@ -76,7 +76,7 @@ function club_import_run_import() {
   array("Sammamish Orienteering Club","SAMM","c/o Dave Enger","11215 NE 59th Place","Kirkland, WA 98033","47.659857","-122.189099","Kirkland","WA","98033","425-822-6254","","","www.sammamishorienteering.org/","","SANCTIONED_CLUB"),
   array("Badger Orienteering Club","BGR","c/o Catherine Ann Yekenevicz","2330 Chestnut St., #35","West Bend, WI 53095-2989","43.422592","-88.2109349","West Bend","WI","53095-2989","262-335-3304","","kevin@chorus.net","userpages.chorus.net/kevin/","","SANCTIONED_CLUB"),
   array("Laramie Range Orienteering Club","LROC","c/o Mikell Platt","1151 Inca Drive","Laramie, WY 82072","41.3220447","-105.5484803","Laramie","WY","82072","307-721-9711","","mikell@wyoming.com","laramieorienteering.webs.com/","","SANCTIONED_CLUB"),
-  array("New England Orienteering Club","NEOC","","","","","","","","","","Pete Lane pete.lane@comcast.net","info@newenglandorienteering.org","www.newenglandorienteering.org/","www.newenglandorienteering.org/index.php/mapped-venues/maps-permanent-courses","SANCTIONED_CLUB"),
+  array("New England Orienteering Club","NEOC","","","","42.3584308","-71.0597732","Boston","MA","02101","","Pete Lane pete.lane@comcast.net","info@newenglandorienteering.org","www.newenglandorienteering.org/","www.newenglandorienteering.org/index.php/mapped-venues/maps-permanent-courses","SANCTIONED_CLUB"),
   array("NYC Central Park","","","","","40.7654616","-73.9809827","New York","NY","10106","","","","www.treasurehuntadventures.com/","www.treasurehuntadventures.com/centralpark/","PERMANENT_COURSE"),
   array("The Outdoor Campus - East","","","4500 S. Oxbow Ave","Sioux Falls, SD 57106","43.5045765","-96.7659266","Sioux Falls","SD","57106","605-362-2777","","TOC@state.sd.us","gfp.sd.gov/outdoor-learning/outdoor-campus/default.aspx","gfp.sd.gov/outdoor-learning/outdoor-campus/default.aspx","PERMANENT_COURSE"),
   array("The Outdoor Campus - West","","","Sturgis Road","Rapid City, SD","44.1166608","-103.2942402","Rapid City","SD","57702","605-394-1753","","chad.tussing@state.sd.us","gfp.sd.gov/outdoor-learning/outdoor-campus/default.aspx","gfp.sd.gov/outdoor-learning/outdoor-campus/default.aspx","PERMANENT_COURSE"),
@@ -150,88 +150,157 @@ function club_import_run_import() {
  * Implements hook_openlayers_styles().
  */
 function club_import_openlayers_styles() {
-  $styles = array();
-  $style = new stdClass();
-  $style->api_version = 1;
-  $style->name = 'blah_default';
-  $style->title = t('Blah style');
-  $style->description = t('Blah default style.');
-  $style->data = array(
-    'pointRadius' => 5,
-    'fillColor' => '#FFCC66',
-    'strokeColor' => '#FF9933',
-    'strokeWidth' => 4,
-    'fillOpacity' => 0.5
+  $items = array();
+
+  $openlayers_styles = new stdClass;
+  $openlayers_styles->disabled = FALSE; /* Edit this to true to make a default openlayers_styles disabled initially */
+  $openlayers_styles->api_version = 1;
+  $openlayers_styles->name = 'club_locations';
+  $openlayers_styles->title = 'Club locations style';
+  $openlayers_styles->description = 'For displaying clubs on a map';
+  $openlayers_styles->data = array(
+  'externalGraphic' => '/sites/default/files/images/ControlFlag16x16.png',
+  'pointRadius' => 5,
+  'fillColor' => '#FFCC66',
+  'strokeColor' => '#FF9933',
+  'strokeWidth' => 4,
+  'fillOpacity' => 0.5,
+  'strokeOpacity' => 1,
+  'strokeLinecap' => 'round',
+  'strokeDashstyle' => 'solid',
+  'graphicWidth' => 16,
+  'graphicHeight' => 16,
+  'graphicOpacity' => 1,
+  'labelAlign' => 'cm',
   );
-  $styles[$style->name] = $style;
-  return $styles;
+  $items["club_locations"] = $openlayers_styles;
+
+  return $items;
 }
 
 function club_import_openlayers_presets() {
   $items = array();
+
+
   $openlayers_presets = new stdClass;
   $openlayers_presets->disabled = FALSE; /* Edit this to true to make a default openlayers_presets disabled initially */
   $openlayers_presets->api_version = 1;
-  $openlayers_presets->name = 'blah_ousa';
-  $openlayers_presets->title = 'Default blah Map';
-  $openlayers_presets->description = 'This is the OUSA map preset that comes with the OpenLayers module.';
+  $openlayers_presets->name = 'node_small_map';
+  $openlayers_presets->title = 'Small Map';
+  $openlayers_presets->description = 'Used for displaying a small map in a node view';
   $openlayers_presets->data = array(
-    'width' => 'auto',
-    'height' => '400px',
-    'image_path' => '',
-    'css_path' => '',
-    'proxy_host' => '',
-    'hide_empty_map' => 0,
-    'center' => array(
-      'initial' => array(
-        'centerpoint' => '-98.525390621114, 40.178873313004',
-        'zoom' => '3',
+  'width' => '240px',
+  'height' => '240px',
+  'image_path' => '',
+  'css_path' => '',
+  'proxy_host' => '',
+  'hide_empty_map' => 0,
+  'center' => array(
+    'initial' => array(
+      'centerpoint' => '-100.195312496, 37.160316545462',
+      'zoom' => '3',
   ),
-      'restrict' => array(
-        'restrictextent' => 0,
-        'restrictedExtent' => '-14333471.541471,2817774.6102,-7132491.982071,6476968.027612',
-  ),
-  ),
-    'behaviors' => array(
-      'openlayers_behavior_attribution' => array(),
-      'openlayers_behavior_popup' => array(
-        'layers' => array(
-          'club_locations_data_openlayers_1' => 'club_locations_data_openlayers_1',
+    'restrict' => array(
+      'restrictextent' => 0,
+      'restrictedExtent' => '',
   ),
   ),
-      'openlayers_behavior_keyboarddefaults' => array(),
-      'openlayers_behavior_navigation' => array(
-        'zoomWheelEnabled' => 0,
+  'behaviors' => array(
+    'openlayers_behavior_attribution' => array(),
+    'openlayers_behavior_navigation' => array(
+      'zoomWheelEnabled' => 0,
   ),
-      'openlayers_behavior_panzoombar' => array(),
-      'openlayers_behavior_cluster' => array(
-        'clusterlayer' => array(
-          'club_locations_data_openlayers_1' => 'club_locations_data_openlayers_1',
+    'openlayers_behavior_panzoom' => array(),
   ),
-        'distance' => '10',
-        'threshold' => '',
+  'default_layer' => 'osm_mapnik',
+  'layers' => array(
+    'osm_mapnik' => 'osm_mapnik',
   ),
+  'layer_styles' => array(),
+  'layer_activated' => array(),
+  'layer_switcher' => array(),
+  'projection' => '900913',
+  'displayProjection' => '4326',
+  'styles' => array(
+    'default' => 'club_locations',
+    'select' => 'club_locations',
+    'temporary' => 'default',
   ),
-    'default_layer' => 'osm_mapnik',
-    'layers' => array(
-      'osm_mapnik' => 'osm_mapnik',
-      'club_locations_data_openlayers_1' => 'club_locations_data_openlayers_1',
-  ),
-    'layer_styles' => array(),
-    'layer_activated' => array(),
-    'layer_switcher' => array(
-      'club_locations_data_openlayers_1' => 'club_locations_data_openlayers_1',
-  ),
-    'projection' => '900913',
-    'displayProjection' => '4326',
-    'styles' => array(
-      'default' => 'blah_ousa',
-      'select' => 'blah_ousa',
-      'temporary' => 'blah_ousa',
-  ),
-    'preset_name' => 'blah_ousa',
+  'preset_name' => 'node_small_map',
   );
-  $items["blah_ousa"] = $openlayers_presets;
+  $items["node_small_map"] = $openlayers_presets;
+
+  $openlayers_presets = new stdClass;
+  $openlayers_presets->disabled = FALSE; /* Edit this to true to make a default openlayers_presets disabled initially */
+  $openlayers_presets->api_version = 1;
+  $openlayers_presets->name = 'ousaclubs';
+  $openlayers_presets->title = 'Clubs Map';
+  $openlayers_presets->description = 'A map with all clubs';
+  $openlayers_presets->data = array(
+  'width' => 'auto',
+  'height' => '400px',
+  'image_path' => '',
+  'css_path' => '',
+  'proxy_host' => '',
+  'hide_empty_map' => 0,
+  'center' => array(
+    'initial' => array(
+      'centerpoint' => '-110.21484374565, 46.558860301679',
+      'zoom' => '3',
+  ),
+    'restrict' => array(
+      'restrictextent' => 0,
+      'restrictedExtent' => '',
+  ),
+  ),
+  'behaviors' => array(
+    'openlayers_behavior_attribution' => array(),
+    'openlayers_behavior_popup' => array(
+      'layers' => array(
+        'club_locations_data_openlayers_1' => 'club_locations_data_openlayers_1',
+  ),
+  ),
+    'openlayers_behavior_keyboarddefaults' => array(),
+    'openlayers_behavior_navigation' => array(
+      'zoomWheelEnabled' => 0,
+  ),
+    'openlayers_behavior_dragpan' => array(),
+    'openlayers_behavior_panzoombar' => array(),
+    'openlayers_behavior_permalink' => array(),
+    'openlayers_behavior_cluster' => array(
+      'clusterlayer' => array(
+        'club_locations_data_openlayers_1' => 'club_locations_data_openlayers_1',
+  ),
+      'distance' => '12',
+      'threshold' => '',
+  ),
+  ),
+  'default_layer' => 'osm_mapnik',
+  'layers' => array(
+    'osm_mapnik' => 'osm_mapnik',
+    'club_locations_data_openlayers_1' => 'club_locations_data_openlayers_1',
+  ),
+  'layer_styles' => array(
+    'club_locations_data_openlayers_1' => array(
+      'default' => 'club_locations',
+      'select' => 'club_locations',
+  ),
+  ),
+  'layer_activated' => array(
+    'club_locations_data_openlayers_1' => 'club_locations_data_openlayers_1',
+  ),
+  'layer_switcher' => array(),
+  'projection' => '900913',
+  'displayProjection' => '4326',
+  'styles' => array(
+    'default' => 'default',
+    'select' => 'default',
+    'temporary' => 'default',
+  ),
+  'preset_name' => 'ousaclubs',
+  );
+  $items["ousaclubs"] = $openlayers_presets;
+
   return $items;
 }
 
