@@ -309,3 +309,44 @@ padding: 2px 6px;
 .club_address p , .openlayers-popup-description p {
   margin:0;
 }
+
+.view-clubs-all table {
+width:100%;
+margin-top:20px;
+}
+
+.view-clubs-all th, .view-clubs-all td, .view-clubs-all tr, .view-clubs-all tbody {
+	background-color:transparent;
+	border:none;
+	}
+	
+.view-clubs-all td {
+  padding:2px 0 20px 6px;
+  vertical-align:top;
+}
+
+.view-clubs-all table.views-view-grid td {
+	width:50%;
+}
+
+.view-clubs-all .row-last td {
+  padding-bottom:2px;
+}
+
+.view-clubs-all .view-content h3 {
+text-align:left;
+font-weight:bold;
+text-transform:uppercase;
+margin-bottom:0;
+padding:4px 5px;
+background-color:#73aeff;
+color:#ffffff;
+}
+table.views-view-grid {
+margin-top:0;
+border:1px dotted #73aeff;
+}
+
+.view-clubs-all .views-field-nothing .field-content p {
+    margin: 0 0 -1.5em;
+}
