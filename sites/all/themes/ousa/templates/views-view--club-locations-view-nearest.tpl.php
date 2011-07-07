@@ -29,79 +29,41 @@
  * @ingroup views_templates
  */
 ?>
-<script language="JavaScript" src="http://www.geoplugin.net/javascript.gp" type="text/javascript"></script>
+<script language="JavaScript"
+	src="http://www.geoplugin.net/javascript.gp" type="text/javascript"></script>
 
 <script language="javascript" charset="charset=utf-8">
 $(document).ready(function(){
+	if (! $("#edit-circle-location").attr('value')) {
 	$("#edit-circle-location").attr('value', geoplugin_city()+", "+geoplugin_regionCode());
-	});
-$(document).ready(function(){
 	$("#edit-circle-value").attr('value', 150);
+	$("#views-exposed-form-club-locations-view-nearest-page-1").submit();
+	}
 	});
-</script>  
-<script language="javascript" charset="charset=utf-8">
-$(document).ready(function(){
-$("#views-exposed-form-club-locations-view-nearest-page-1--disabled").submit();
-});
-</script> 
-<div class="<?php print $classes; ?>">
-  <?php if ($admin_links): ?>
-    <div class="views-admin-links views-hide">
-      <?php print $admin_links; ?>
-    </div>
-  <?php endif; ?>
-  <?php if ($header): ?>
-    <div class="view-header">
-      <?php print $header; ?>
-    </div>
-  <?php endif; ?>
+</script>
+<div class="<?php print $classes; ?>"><?php if ($admin_links): ?>
+<div class="views-admin-links views-hide"><?php print $admin_links; ?></div>
+<?php endif; ?> <?php if ($header): ?>
+<div class="view-header"><?php print $header; ?></div>
+<?php endif; ?> <?php if ($exposed): ?>
+<div class="view-filters"><?php print $exposed; ?></div>
+<?php endif; ?> <?php if ($attachment_before): ?>
+<div class="attachment attachment-before"><?php print $attachment_before; ?>
+</div>
+<?php endif; ?> <?php if ($rows): ?>
+<div class="view-content"><?php print $rows; ?></div>
+<?php elseif ($empty): ?>
+<div class="view-empty"><?php print $empty; ?></div>
+<?php endif; ?> <?php if ($pager): ?> <?php print $pager; ?> <?php endif; ?>
 
-  <?php if ($exposed): ?>
-    <div class="view-filters">
-      <?php print $exposed; ?>
-    </div>
-  <?php endif; ?>
+<?php if ($attachment_after): ?>
+<div class="attachment attachment-after"><?php print $attachment_after; ?>
+</div>
+<?php endif; ?> <?php if ($more): ?> <?php print $more; ?> <?php endif; ?>
 
-  <?php if ($attachment_before): ?>
-    <div class="attachment attachment-before">
-      <?php print $attachment_before; ?>
-    </div>
-  <?php endif; ?>
-
-  <?php if ($rows): ?>
-    <div class="view-content">
-      <?php print $rows; ?>
-    </div>
-  <?php elseif ($empty): ?>
-    <div class="view-empty">
-      <?php print $empty; ?>
-    </div>
-  <?php endif; ?>
-
-  <?php if ($pager): ?>
-    <?php print $pager; ?>
-  <?php endif; ?>
-
-  <?php if ($attachment_after): ?>
-    <div class="attachment attachment-after">
-      <?php print $attachment_after; ?>
-    </div>
-  <?php endif; ?>
-
-  <?php if ($more): ?>
-    <?php print $more; ?>
-  <?php endif; ?>
-
-  <?php if ($footer): ?>
-    <div class="view-footer">
-      <?php print $footer; ?>
-    </div>
-  <?php endif; ?>
-
-  <?php if ($feed_icon): ?>
-    <div class="feed-icon">
-      <?php print $feed_icon; ?>
-    </div>
-  <?php endif; ?>
-
-</div> <?php /* class view */ ?>
+<?php if ($footer): ?>
+<div class="view-footer"><?php print $footer; ?></div>
+<?php endif; ?> <?php if ($feed_icon): ?>
+<div class="feed-icon"><?php print $feed_icon; ?></div>
+<?php endif; ?></div>
+<?php /* class view */ ?>
