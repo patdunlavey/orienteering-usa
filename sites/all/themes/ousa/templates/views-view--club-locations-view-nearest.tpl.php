@@ -39,7 +39,11 @@ $(document).ready(function(){
 	$("#edit-circle-value").attr('value', 150);
 	});
 </script>  
-
+<script language="javascript" charset="charset=utf-8">
+$(document).ready(function(){
+$("#views-exposed-form-club-locations-view-nearest-page-1").submit();
+});
+</script> 
 <div class="<?php print $classes; ?>">
   <?php if ($admin_links): ?>
     <div class="views-admin-links views-hide">
