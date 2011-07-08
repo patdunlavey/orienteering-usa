@@ -359,3 +359,9 @@ border:1px dotted #73aeff;
 .node-type-club .item {
 	margin-bottom:6px;
 }
+
+div.ip_explanation {
+clear:both;
+font-size:85%;
+color:#444;
+}

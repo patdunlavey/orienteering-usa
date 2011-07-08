@@ -34,10 +34,14 @@
 
 <script language="javascript" charset="charset=utf-8">
 $(document).ready(function(){
+	var iplocation = geoplugin_city()+", "+geoplugin_regionCode();
 	if (! $("#edit-circle-location").attr('value')) {
-	$("#edit-circle-location").attr('value', geoplugin_city()+", "+geoplugin_regionCode());
+	$("#edit-circle-location").attr('value', iplocation);
 	$("#edit-circle-value").attr('value', 150);
 	$("#views-exposed-form-club-locations-view-nearest-page-1").submit();
+	}
+	else if ($("#edit-circle-location").attr('value') == iplocation) {
+		$("#edit-circle-location-wrapper").after('<div class="ip_explanation">This location was pre-loaded from your device&rsquo;s IP address.<br>To find clubs near a different location, use the boxes above.</div>'); 
 	}
 	});
 </script>
