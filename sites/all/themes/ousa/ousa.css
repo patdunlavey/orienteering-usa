@@ -365,3 +365,8 @@ clear:both;
 font-size:85%;
 color:#444;
 }
+
+.links div.button {
+float:left;
+padding:0 10px 0 0px;
+}

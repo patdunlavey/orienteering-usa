@@ -135,9 +135,18 @@
   <?php print $node->field_email[0]['view']; ?>
   </div>
   <?php endif; ?>
+  <?php if ($node->field_club_schedule_page[0]['view'] || $node->field_permanent_course_link[0]['view']):?>
+  <div id="club_links" class="item links">
+  <?php if ($node->field_club_schedule_page[0]['view'] ):?>
+  <div class="button club_schedule_link">
+  <a href = "<?php print $node->field_club_schedule_page[0]['url']; ?>" target="_blank" title="Click to see this club's event calendar"><img src ="/sites/default/files/images/calendar_button.png"></img></a>
+  </div>
+  <?php endif; ?>
   <?php if ($node->field_permanent_course_link[0]['view']):?>
-  <div class="item club_permanent_course_link">
+  <div class="button club_permanent_course_link">
   <a href = "<?php print $node->field_permanent_course_link[0]['url']; ?>" target="_blank" title="Permanent course information is available"><img src ="/sites/default/files/images/permcourse.gif"></img></a>
+  </div>
+  <?php endif; ?>
   </div>
   <?php endif; ?>
   <?php if ($node->content['body']['#value']):?>
