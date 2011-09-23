@@ -368,10 +368,18 @@ color:#444;
 
 .links div.button {
 float:left;
-padding:0 10px 0 0px;
+padding:0 6px 0 0px;
+}
+span.button a {
+margin-right: 6px;
 }
 
-.view-clubs-all div.links .field-item, .view-clubs-all div.links a {
+.view-clubs-all div.links .field-item,
+.openlayers-preset-ousaclubs div.links .field-item {
+float:left;
+}
+.view-clubs-all div.links a,
+.openlayers-preset-ousaclubs div.links a {
 float:left;
 margin-right:6px;
 }
