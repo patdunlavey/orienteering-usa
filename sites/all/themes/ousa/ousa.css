@@ -370,3 +370,15 @@ color:#444;
 float:left;
 padding:0 10px 0 0px;
 }
+
+.view-clubs-all div.links .field-item, .view-clubs-all div.links a {
+float:left;
+margin-right:6px;
+}
+.view-clubs-all div.links {
+/*
+    clear: both;
+    height: 16px;
+*/
+    overflow: hidden;
+}
