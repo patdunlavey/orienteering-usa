@@ -232,9 +232,38 @@ function phptemplate_preprocess_node(&$vars, $hook) {
         $state_string .= $last_state;
         $vars['field_club_states_active']['view_string'] = $state_string;
       }
+/*
+      foreach($vars['field_social_media_site'] as $smsite) {
+        $imgtag = theme_image(ousa_get_socialmedia_icon($smsite['url']));
+        $smlinks = l($imgtag,$smsite['url'],array('html'=>TRUE,'attributes'=>array('target'=>'_blank')));
+        $vars['smlinks'] .= '<div class="button">'.$smlinks.'</div>';
+      }
+*/
       break;
     default:
       break;
   }
 }
 
+
+function phptemplate_link_formatter_default($element) {
+switch($element['#field_name']) {
+case 'field_social_media_site':
+/* dpm($element); */
+          $imgtag = theme_image(ousa_get_socialmedia_icon($element['#item']['url']));
+        $smlinks = l($imgtag,$element['#item']['url'],array('html'=>TRUE,'attributes'=>array('target'=>'_blank', 'title'=>$element['#item']['title'])));
+        return '<div class="button">'.$smlinks.'</div>';
+
+break;
+default:
+  // Display a normal link if both title and URL are available.
+  if (!empty($element['#item']['display_title']) && !empty($element['#item']['url'])) {
+    return l($element['#item']['display_title'], $element['#item']['url'], $element['#item']);
+  }
+  // If only a title, display the title.
+  elseif (!empty($element['#item']['display_title'])) {
+    return check_plain($element['#item']['display_title']);
+  }
+break;
+}
+}

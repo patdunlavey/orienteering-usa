@@ -1,0 +1,14 @@
+default
+background
+
+styles
+  clubs
+  permanent courses
+  events
+  maps
+  
+presets
+  single node display
+  multiple node display (view)
+  select/edit widget
+  

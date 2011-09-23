@@ -75,7 +75,7 @@
 
 
 
-//  dpm($node);
+/*   dpm($node); */
 ?>
 <div id="node-<?php print $node->nid; ?>" class="<?php print $classes; ?> clearfix">
   <?php print $user_picture; ?>
@@ -135,7 +135,7 @@
   <?php print $node->field_email[0]['view']; ?>
   </div>
   <?php endif; ?>
-  <?php if ($node->field_club_schedule_page[0]['view'] || $node->field_permanent_course_link[0]['view']):?>
+  <?php if ($node->field_club_schedule_page[0]['view'] || $node->field_permanent_course_link[0]['view'] || $node->field_social_media_site[0]['url']):?>
   <div id="club_links" class="item links">
   <?php if ($node->field_club_schedule_page[0]['view'] ):?>
   <div class="button club_schedule_link">
@@ -145,6 +145,14 @@
   <?php if ($node->field_permanent_course_link[0]['view']):?>
   <div class="button club_permanent_course_link">
   <a href = "<?php print $node->field_permanent_course_link[0]['url']; ?>" target="_blank" title="Permanent course information is available"><img src ="/sites/default/files/images/permcourse.gif"></img></a>
+  </div>
+  <?php endif; ?>
+  <?php if ($node->field_social_media_site[0]['url']):?>
+  <div class=" club_social_media_site_link">
+  <?php foreach($node->field_social_media_site as $smsite) {
+      print($smsite['view']);
+    } 
+    ?>
   </div>
   <?php endif; ?>
   </div>
