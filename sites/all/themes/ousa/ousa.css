@@ -307,7 +307,10 @@ padding: 2px 6px;
 .club_location_map {
 	float:right;
 }
-.club_address p , .openlayers-popup-description p {
+.club_address p  {
+    margin: 0;
+}
+.openlayers-popup-description p {
     margin: 0 0 -1.5em;
 }
 
