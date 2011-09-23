@@ -249,11 +249,12 @@ function phptemplate_preprocess_node(&$vars, $hook) {
 function phptemplate_link_formatter_default($element) {
 switch($element['#field_name']) {
 case 'field_social_media_site':
+if($element['#item']['url']) {
 /* dpm($element); */
           $imgtag = theme_image(ousa_get_socialmedia_icon($element['#item']['url']));
         $smlinks = l($imgtag,$element['#item']['url'],array('html'=>TRUE,'attributes'=>array('target'=>'_blank', 'title'=>$element['#item']['title'])));
         return '<span class="button">'.$smlinks.'</span>';
-
+}
 break;
 default:
   // Display a normal link if both title and URL are available.
