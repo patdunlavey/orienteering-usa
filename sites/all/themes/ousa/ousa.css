@@ -383,7 +383,8 @@ float:left;
 float:left;
 margin-right:6px;
 }
-.view-clubs-all div.links {
+.view-clubs-all div.links,
+.openlayers-preset-ousaclubs div.links {
 /*
     clear: both;
     height: 16px;
