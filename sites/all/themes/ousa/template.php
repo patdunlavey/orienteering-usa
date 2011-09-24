@@ -253,7 +253,7 @@ if($element['#item']['url']) {
 /* dpm($element); */
           $imgtag = theme_image(ousa_get_socialmedia_icon($element['#item']['url']));
         $smlinks = l($imgtag,$element['#item']['url'],array('html'=>TRUE,'attributes'=>array('target'=>'_blank', 'title'=>$element['#item']['title'] . ' (click to go open this website in a new window)')));
-        return '<span class="button">'.$smlinks.' </span>';
+        return '<span class="button">'.$smlinks.'</span>';
 }
 break;
 default:
