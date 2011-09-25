@@ -74,7 +74,7 @@ function ousa_views_pre_execute(&$view) {
 }
 
 function ousa_fix_states() {
-  $states_index = array("AL"=>"Alabama", "AK"=>"Alaska", "AS"=>"American Samoa", "AZ"=>"Arizona", "AR"=>"Arkansas", "CA"=>"California", "CO"=>"Colorado", "CT"=>"Connecticut", "DE"=>"Delaware", "DC"=>"District of Columbia", "FL"=>"Florida", "GA"=>"Georgia", "GU"=>"Guam", "HI"=>"Hawaii", "ID"=>"Idaho", "IL"=>"Illinois", "IN"=>"Indiana", "IA"=>"Iowa", "KS"=>"Kansas", "KY"=>"Kentucky", "LA"=>"Louisiana", "ME"=>"Maine", "MD"=>"Maryland", "MA"=>"Massachusetts", "MI"=>"Michigan", "MN"=>"Minnesota", "MS"=>"Mississippi", "MO"=>"Missouri", "MT"=>"Montana", "NE"=>"Nebraska", "NV"=>"Nevada", "NH"=>"New Hampshire", "NJ"=>"New Jersey", "NM"=>"New Mexico", "NY"=>"New York", "NC"=>"North Carolina", "ND"=>"North Dakota", "OH"=>"Ohio", "OK"=>"Oklahoma", "OR"=>"Oregon", "PA"=>"Pennsylvania", "PR"=>"Puerto Rico", "RI"=>"Rhode Island", "SC"=>"South Carolina", "SD"=>"South Dakota", "TN"=>"Tennessee", "TX"=>"Texas", "UT"=>"Utah", "VT"=>"Vermont", "VA"=>"Virginia", "WA"=>"Washington", "WV"=>"West Virginia", "WI"=>"Wisconsin", "WY"=>"Wyoming");  
+  $states_index = array("AL"=>"Alabama", "AK"=>"Alaska", "AS"=>"American Samoa", "AZ"=>"Arizona", "AR"=>"Arkansas", "CA"=>"California", "CO"=>"Colorado", "CT"=>"Connecticut", "DE"=>"Delaware", "DC"=>"District of Columbia", "FL"=>"Florida", "GA"=>"Georgia", "GU"=>"Guam", "HI"=>"Hawaii", "ID"=>"Idaho", "IL"=>"Illinois", "IN"=>"Indiana", "IA"=>"Iowa", "KS"=>"Kansas", "KY"=>"Kentucky", "LA"=>"Louisiana", "ME"=>"Maine", "MD"=>"Maryland", "MA"=>"Massachusetts", "MI"=>"Michigan", "MN"=>"Minnesota", "MS"=>"Mississippi", "MO"=>"Missouri", "MT"=>"Montana", "NE"=>"Nebraska", "NV"=>"Nevada", "NH"=>"New Hampshire", "NJ"=>"New Jersey", "NM"=>"New Mexico", "NY"=>"New York", "NC"=>"North Carolina", "ND"=>"North Dakota", "OH"=>"Ohio", "OK"=>"Oklahoma", "OR"=>"Oregon", "PA"=>"Pennsylvania", "PR"=>"Puerto Rico", "RI"=>"Rhode Island", "SC"=>"South Carolina", "SD"=>"South Dakota", "TN"=>"Tennessee", "TX"=>"Texas", "UT"=>"Utah", "VT"=>"Vermont", "VA"=>"Virginia", "WA"=>"Washington", "WV"=>"West Virginia", "WI"=>"Wisconsin", "WY"=>"Wyoming");
   foreach($states_index as $state_iso2=>$state_full_name) {
     db_query("update {content_field_club_states_active} set field_club_states_active_value = '%s' where field_club_states_active_value = '%s'", $state_full_name, $state_iso2 );
   }
@@ -92,8 +92,8 @@ function ousa_get_socialmedia_icon($urlstring) {
   $filepath = drupal_get_path('module', 'ousa') . '/socialmediaicons/';
   $url = parse_url(strtolower($urlstring));
   $domain = explode('.', $url['host']);
-  if($domain[0]=='www') { 
-    array_shift($domain); 
+  if($domain[0]=='www') {
+    array_shift($domain);
   }
   $domain = implode('_',$domain);
   switch($domain) {
@@ -141,6 +141,9 @@ function ousa_get_socialmedia_icon($urlstring) {
     break;
     case 'youtube_com':
           return $filepath . 'youtube.png';
+    break;
+    case 'groups_google_com':
+          return $filepath . 'googlegroups.png';
     break;
     default:
           return $filepath . 'default.png';

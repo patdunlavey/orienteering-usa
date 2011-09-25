@@ -252,7 +252,8 @@ case 'field_social_media_site':
 if($element['#item']['url']) {
 /* dpm($element); */
           $imgtag = theme_image(ousa_get_socialmedia_icon($element['#item']['url']));
-        $smlinks = l($imgtag,$element['#item']['url'],array('html'=>TRUE,'attributes'=>array('target'=>'_blank', 'title'=>$element['#item']['title'] . ' (click to go open this website in a new window)')));
+          $url = $element['#item']['query'] ? $element['#item']['url'] . '?' . $element['#item']['query'] : $element['#item']['url'];
+        $smlinks = l($imgtag,$url,array('html'=>TRUE,'attributes'=>array('target'=>'_blank', 'title'=>$element['#item']['title'] . ' (click to go open this website in a new window)')));
         return '<span class="button">'.$smlinks.'</span>';
 }
 break;
