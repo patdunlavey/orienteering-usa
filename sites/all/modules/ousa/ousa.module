@@ -1,151 +1,266 @@
 <?php
+
 function ousa_form_alter(&$form, &$form_state, $form_id) {
-    //    dpm($form_id);
-    $matches = array('page_node_form'=> TRUE, 'documents_node_form'=>TRUE);
-    if($matches[$form_id]) {
-        // hide some fields from regular authenticated users
-        global $user;
-        if(count($user->roles) < 2 && $user->uid != $form['uid']['#value'] && $form['nid']['#value']) {
-            $form['title']['#access'] = FALSE;
-            $form['field_default_map_node']['#access'] = FALSE;
-            $form['taxonomy'][3]['#access'] = FALSE;
-        }
-        if(isset($form['field_default_map_node'])) {
-        }
+
+
+  //    dpm($form_id);
+  $matches = array(
+    'page_node_form' => TRUE,
+    'documents_node_form' => TRUE
+  );
+
+  if ($matches[$form_id]) {
+
+    // hide some fields from regular authenticated users
+    global $user;
+
+    if (count($user->roles) < 2 && $user->uid != $form['uid']['#value'] && $form['nid']['#value']) {
+      $form['title']['#access'] = FALSE;
+      $form['field_default_map_node']['#access'] = FALSE;
+      $form['taxonomy'][3]['#access'] = FALSE;
     }
-    // remove temptation to attach files using core upload
-    if(isset($form['attachments'])) {
-        $form['attachments']['wrapper']['new']['#access'] = FALSE;
+
+    if (isset($form['field_default_map_node'])) {
     }
+  }
+
+  // remove temptation to attach files using core upload
+
+  if (isset($form['attachments'])) {
+    $form['attachments']['wrapper']['new']['#access'] = FALSE;
+  }
 }
 
 function ousa_menu_alter(&$items) {
-    //    foreach($items as $key => $data) {
-    //        if(strpos($key,'content')) {
-    //            dpm($key);
-    //        }
-    //    }
+
+
+  //    foreach($items as $key => $data) {
+
+  //        if(strpos($key,'content')) {
+
+
+  //            dpm($key);
+
+
+  //        }
+
+
+  //    }
+
+
 }
 
 function ousa_menu_link_alter(&$item, $menu) {
-    //    if(strpos($item['link_path'], 'user')) {
-    //    watchdog('debug',$item['link_path']);
-    //    }
-    if($item['link_path'] == 'user/content') {
-        $item['hidden'] = 1;
-    }
-}
 
+
+  //    if(strpos($item['link_path'], 'user')) {
+
+  //    watchdog('debug',$item['link_path']);
+
+
+  //    }
+
+
+  if ($item['link_path'] == 'user/content') {
+    $item['hidden'] = 1;
+  }
+}
 /**
  * theme function for file attachments that use the core upload module
  * @param $files
  */
+
 function ousa_upload_attachments($files) {
-    $header = array(t('Attachment'), t('Date'), t('Size'));
-    $rows = array();
-    //  dpm($files);
-    //  dpm('here');
-    foreach ($files as $file) {
-        $file_link = theme('filefield_file', (array)$file);
-        $file = (object) $file;
-        if ($file->list && empty($file->remove)) {
-            $href = file_create_url($file->filepath);
-            $text = $file->description ? $file->description : $file->filename;
-            //      $rows[] = array(l($text, $href), format_size($file->filesize));
-            $rows[] = array($file_link, date('n-j-Y',$file->timestamp), format_size($file->filesize));
-        }
+
+  $header = array(
+    t('Attachment') ,
+    t('Date') ,
+    t('Size')
+  );
+  $rows = array();
+
+  //  dpm($files);
+
+  //  dpm('here');
+
+  foreach ($files as $file) {
+    $file_link = theme('filefield_file', (array)$file);
+    $file = (object)$file;
+
+    if ($file->list && empty($file->remove)) {
+      $href = file_create_url($file->filepath);
+      $text = $file->description ? $file->description : $file->filename;
+
+      //      $rows[] = array(l($text, $href), format_size($file->filesize));
+      $rows[] = array(
+        $file_link,
+        date('n-j-Y', $file->timestamp) ,
+        format_size($file->filesize)
+      );
     }
-    if (count($rows)) {
-        return theme('table', $header, $rows, array('id' => 'attachments'));
-    }
+  }
+
+  if (count($rows)) {
+    return theme('table', $header, $rows, array(
+      'id' => 'attachments'
+    ));
+  }
 }
 
-
 function ousa_feeds_after_parse(FeedsImporter $importer, FeedsSource $source) {
+
   dpm($source->batch);
 }
 
 function ousa_views_pre_execute(&$view) {
-  switch($view->name) {
+
+
+  switch ($view->name) {
     case 'clubs_all':
-/*   dpm($view); */
+
+      /*   dpm($view); */
     break;
   }
 }
 
 function ousa_fix_states() {
-  $states_index = array("AL"=>"Alabama", "AK"=>"Alaska", "AS"=>"American Samoa", "AZ"=>"Arizona", "AR"=>"Arkansas", "CA"=>"California", "CO"=>"Colorado", "CT"=>"Connecticut", "DE"=>"Delaware", "DC"=>"District of Columbia", "FL"=>"Florida", "GA"=>"Georgia", "GU"=>"Guam", "HI"=>"Hawaii", "ID"=>"Idaho", "IL"=>"Illinois", "IN"=>"Indiana", "IA"=>"Iowa", "KS"=>"Kansas", "KY"=>"Kentucky", "LA"=>"Louisiana", "ME"=>"Maine", "MD"=>"Maryland", "MA"=>"Massachusetts", "MI"=>"Michigan", "MN"=>"Minnesota", "MS"=>"Mississippi", "MO"=>"Missouri", "MT"=>"Montana", "NE"=>"Nebraska", "NV"=>"Nevada", "NH"=>"New Hampshire", "NJ"=>"New Jersey", "NM"=>"New Mexico", "NY"=>"New York", "NC"=>"North Carolina", "ND"=>"North Dakota", "OH"=>"Ohio", "OK"=>"Oklahoma", "OR"=>"Oregon", "PA"=>"Pennsylvania", "PR"=>"Puerto Rico", "RI"=>"Rhode Island", "SC"=>"South Carolina", "SD"=>"South Dakota", "TN"=>"Tennessee", "TX"=>"Texas", "UT"=>"Utah", "VT"=>"Vermont", "VA"=>"Virginia", "WA"=>"Washington", "WV"=>"West Virginia", "WI"=>"Wisconsin", "WY"=>"Wyoming");
-  foreach($states_index as $state_iso2=>$state_full_name) {
-    db_query("update {content_field_club_states_active} set field_club_states_active_value = '%s' where field_club_states_active_value = '%s'", $state_full_name, $state_iso2 );
+
+  $states_index = array(
+    "AL" => "Alabama",
+    "AK" => "Alaska",
+    "AS" => "American Samoa",
+    "AZ" => "Arizona",
+    "AR" => "Arkansas",
+    "CA" => "California",
+    "CO" => "Colorado",
+    "CT" => "Connecticut",
+    "DE" => "Delaware",
+    "DC" => "District of Columbia",
+    "FL" => "Florida",
+    "GA" => "Georgia",
+    "GU" => "Guam",
+    "HI" => "Hawaii",
+    "ID" => "Idaho",
+    "IL" => "Illinois",
+    "IN" => "Indiana",
+    "IA" => "Iowa",
+    "KS" => "Kansas",
+    "KY" => "Kentucky",
+    "LA" => "Louisiana",
+    "ME" => "Maine",
+    "MD" => "Maryland",
+    "MA" => "Massachusetts",
+    "MI" => "Michigan",
+    "MN" => "Minnesota",
+    "MS" => "Mississippi",
+    "MO" => "Missouri",
+    "MT" => "Montana",
+    "NE" => "Nebraska",
+    "NV" => "Nevada",
+    "NH" => "New Hampshire",
+    "NJ" => "New Jersey",
+    "NM" => "New Mexico",
+    "NY" => "New York",
+    "NC" => "North Carolina",
+    "ND" => "North Dakota",
+    "OH" => "Ohio",
+    "OK" => "Oklahoma",
+    "OR" => "Oregon",
+    "PA" => "Pennsylvania",
+    "PR" => "Puerto Rico",
+    "RI" => "Rhode Island",
+    "SC" => "South Carolina",
+    "SD" => "South Dakota",
+    "TN" => "Tennessee",
+    "TX" => "Texas",
+    "UT" => "Utah",
+    "VT" => "Vermont",
+    "VA" => "Virginia",
+    "WA" => "Washington",
+    "WV" => "West Virginia",
+    "WI" => "Wisconsin",
+    "WY" => "Wyoming"
+  );
+  foreach ($states_index as $state_iso2 => $state_full_name) {
+    db_query("update {content_field_club_states_active} set field_club_states_active_value = '%s' where field_club_states_active_value = '%s'", $state_full_name, $state_iso2);
   }
 }
 
-
 function ousa_init() {
-//  $result = db_result(db_query("select global_settings from {content_node_field} where field_name = 'field_club_states_active'"));
-//  dpm($result);
-//    dpm(unserialize($result));
+
+
+  //  $result = db_result(db_query("select global_settings from {content_node_field} where field_name = 'field_club_states_active'"));
+
+  //  dpm($result);
+
+
+  //    dpm(unserialize($result));
+
+
 }
 
-
 function ousa_get_socialmedia_icon($urlstring) {
+
   $filepath = drupal_get_path('module', 'ousa') . '/socialmediaicons/';
   $url = parse_url(strtolower($urlstring));
   $domain = explode('.', $url['host']);
-  if($domain[0]=='www') {
+
+  if ($domain[0] == 'www') {
     array_shift($domain);
   }
-  $domain = implode('_',$domain);
-  switch($domain) {
+  $domain = implode('_', $domain);
+
+  switch ($domain) {
     case 'digg_com':
-          return $filepath . 'digg.png';
+      return $filepath . 'digg.png';
     break;
     case 'facebook_com':
-          return $filepath . 'facebook.png';
+      return $filepath . 'facebook.png';
     break;
     case 'flickr_com':
-          return $filepath . 'flickr.png';
+      return $filepath . 'flickr.png';
     break;
     case 'linkedin_com':
-          return $filepath . 'linkedin.png';
+      return $filepath . 'linkedin.png';
     break;
     case 'myspace_com':
-          return $filepath . 'myspace.png';
+      return $filepath . 'myspace.png';
     break;
     case 'newsvine_com':
-          return $filepath . 'newsvine.png';
+      return $filepath . 'newsvine.png';
     break;
     case 'posterous_com':
-          return $filepath . 'posterous.png';
+      return $filepath . 'posterous.png';
     break;
     case 'reddit_com':
-          return $filepath . 'reddit.png';
+      return $filepath . 'reddit.png';
     break;
     case 'stumbledupon_com':
-          return $filepath . 'stumble.png';
+      return $filepath . 'stumble.png';
     break;
     case 'technorati_com':
-          return $filepath . 'technorati.png';
+      return $filepath . 'technorati.png';
     break;
     case 'tumblr_com':
-          return $filepath . 'tumblr.png';
+      return $filepath . 'tumblr.png';
     break;
     case 'twitter_com':
-          return $filepath . 'twitter.png';
+      return $filepath . 'twitter.png';
     break;
     case 'vimeo_com':
-          return $filepath . 'vimeo.png';
+      return $filepath . 'vimeo.png';
     break;
     case 'groups_yahoo_com':
-          return $filepath . 'yahoo.png';
+      return $filepath . 'yahoo.png';
     break;
     case 'youtube_com':
-          return $filepath . 'youtube.png';
+      return $filepath . 'youtube.png';
     break;
     case 'groups_google_com':
-          return $filepath . 'googlegroups.png';
+      return $filepath . 'googlegroups.png';
     break;
     default:
-          return $filepath . 'default.png';
-    break;}
+      return $filepath . 'default.png';
+    break;
+  }
 }
