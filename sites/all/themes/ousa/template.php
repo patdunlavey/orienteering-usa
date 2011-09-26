@@ -61,8 +61,6 @@
  *   http://drupal.org/node/223440
  *   and http://drupal.org/node/190815#template-suggestions
  */
-
-
 /**
  * Implementation of HOOK_theme().
  */
@@ -75,7 +73,6 @@ function ousa_theme(&$existing, $type, $theme, $path) {
   // @TODO: Needs detailed comments. Patches welcome!
   return $hooks;
 }
-
 /**
  * Override or insert variables into all templates.
  *
@@ -85,11 +82,10 @@ function ousa_theme(&$existing, $type, $theme, $path) {
  *   The name of the template being rendered (name of the .tpl.php file.)
  */
 /* -- Delete this line if you want to use this function
- function STARTERKIT_preprocess(&$vars, $hook) {
- $vars['sample_variable'] = t('Lorem ipsum.');
- }
- // */
-
+  function STARTERKIT_preprocess(&$vars, $hook) {
+  $vars['sample_variable'] = t('Lorem ipsum.');
+  }
+  // */
 /**
  * Override or insert variables into the page templates.
  *
@@ -99,11 +95,10 @@ function ousa_theme(&$existing, $type, $theme, $path) {
  *   The name of the template being rendered ("page" in this case.)
  */
 /* -- Delete this line if you want to use this function
- function STARTERKIT_preprocess_page(&$vars, $hook) {
- $vars['sample_variable'] = t('Lorem ipsum.');
- }
- // */
-
+  function STARTERKIT_preprocess_page(&$vars, $hook) {
+  $vars['sample_variable'] = t('Lorem ipsum.');
+  }
+  // */
 /**
  * Override or insert variables into the node templates.
  *
@@ -113,18 +108,17 @@ function ousa_theme(&$existing, $type, $theme, $path) {
  *   The name of the template being rendered ("node" in this case.)
  */
 /* -- Delete this line if you want to use this function
- function STARTERKIT_preprocess_node(&$vars, $hook) {
- $vars['sample_variable'] = t('Lorem ipsum.');
+  function STARTERKIT_preprocess_node(&$vars, $hook) {
+  $vars['sample_variable'] = t('Lorem ipsum.');
 
- // Optionally, run node-type-specific preprocess functions, like
- // STARTERKIT_preprocess_node_page() or STARTERKIT_preprocess_node_story().
- $function = __FUNCTION__ . '_' . $vars['node']->type;
- if (function_exists($function)) {
- $function($vars, $hook);
- }
- }
- // */
-
+  // Optionally, run node-type-specific preprocess functions, like
+  // STARTERKIT_preprocess_node_page() or STARTERKIT_preprocess_node_story().
+  $function = __FUNCTION__ . '_' . $vars['node']->type;
+  if (function_exists($function)) {
+  $function($vars, $hook);
+  }
+  }
+  // */
 /**
  * Override or insert variables into the comment templates.
  *
@@ -134,11 +128,10 @@ function ousa_theme(&$existing, $type, $theme, $path) {
  *   The name of the template being rendered ("comment" in this case.)
  */
 /* -- Delete this line if you want to use this function
- function STARTERKIT_preprocess_comment(&$vars, $hook) {
- $vars['sample_variable'] = t('Lorem ipsum.');
- }
- // */
-
+  function STARTERKIT_preprocess_comment(&$vars, $hook) {
+  $vars['sample_variable'] = t('Lorem ipsum.');
+  }
+  // */
 /**
  * Override or insert variables into the block templates.
  *
@@ -148,42 +141,35 @@ function ousa_theme(&$existing, $type, $theme, $path) {
  *   The name of the template being rendered ("block" in this case.)
  */
 /* -- Delete this line if you want to use this function
- function STARTERKIT_preprocess_block(&$vars, $hook) {
- $vars['sample_variable'] = t('Lorem ipsum.');
- }
- // */
-
-
+  function STARTERKIT_preprocess_block(&$vars, $hook) {
+  $vars['sample_variable'] = t('Lorem ipsum.');
+  }
+  // */
 function phptemplate_views_summary_archive($view, $type, $level, $nodes, $args) {
   foreach ($nodes as $node) {
-    $list .= '<li class="leaf">' . views_get_summary_link($view->argument[$level]['type'], $node, $view->real_url) . "</li>\n";
+    $list.= '<li class="leaf">' . views_get_summary_link($view->argument[$level]['type'], $node, $view->real_url) . "</li>\n";
   }
-
   if ($list) {
     return "<div class='menu'><ul>$list</ul></div>";
   }
 }
-
 /**
  *Adding or modifying variables before page render.
  */
-function phptemplate_preprocess_page (&$vars) {
-  if($vars['node']->type == 'club' && strlen($vars['node']->field_club_abbreviation[0]['view'])>0) {
-    $vars['title'] = $vars['title']." (".$vars['node']->field_club_abbreviation[0]['view'].")";
+function phptemplate_preprocess_page(&$vars) {
+  if ($vars['node']->type == 'club' && strlen($vars['node']->field_club_abbreviation[0]['view']) > 0) {
+    $vars['title'] = $vars['title'] . " (" . $vars['node']->field_club_abbreviation[0]['view'] . ")";
   }
 }
-
 function phptemplate_preprocess_block(&$variables) {
-
-  $block = &$variables['block'];
-
+  $block = & $variables['block'];
   if ($block->module == 'advancedbookblocks') {
     $node = menu_get_object();
     $toplevel[] = $node->book['bid'];
     if (!empty($toplevel)) {
       $tree = recursive_book_array_builder($toplevel);
       // get subtree  to have that option, also get node title of book root and put it into the block title
-      foreach($tree as $branch) {
+      foreach ($tree as $branch) {
         $block->subject = $branch['link']['title'];
         $newtree = $branch['below'];
         break;
@@ -194,9 +180,7 @@ function phptemplate_preprocess_block(&$variables) {
       $block->content = theme('menu_creation_by_array', $tree, $trail);
     }
   }
-
 }
-
 /**
  * Override or insert variables into the node templates.
  *
@@ -206,7 +190,6 @@ function phptemplate_preprocess_block(&$variables) {
  *   The name of the template being rendered ("node" in this case.)
  */
 function phptemplate_preprocess_node(&$vars, $hook) {
-
   //  $vars['sample_variable'] = t('Lorem ipsum.');
   //
   //  // Optionally, run node-type-specific preprocess functions, like
@@ -215,57 +198,55 @@ function phptemplate_preprocess_node(&$vars, $hook) {
   //  if (function_exists($function)) {
   //    $function($vars, $hook);
   //  }
-  switch($vars['type']) {
+  switch ($vars['type']) {
     case 'club':
       $count_states = count($vars['field_club_states_active']);
-      if($count_states) {
+      if ($count_states) {
         $states = array();
-        foreach($vars['field_club_states_active'] as $key => $state) {
-          if(is_int($key)) {
+        foreach ($vars['field_club_states_active'] as $key => $state) {
+          if (is_int($key)) {
             $states[] = $state['view'];
           }
         }
         $last_state = array_pop($states);
-        if($count_states > 1 ) {
+        if ($count_states > 1) {
           $state_string = implode(', ', $states) . ' and ';
         }
-        $state_string .= $last_state;
+        $state_string.= $last_state;
         $vars['field_club_states_active']['view_string'] = $state_string;
       }
-/*
+      /*
       foreach($vars['field_social_media_site'] as $smsite) {
         $imgtag = theme_image(ousa_get_socialmedia_icon($smsite['url']));
         $smlinks = l($imgtag,$smsite['url'],array('html'=>TRUE,'attributes'=>array('target'=>'_blank')));
         $vars['smlinks'] .= '<div class="button">'.$smlinks.'</div>';
       }
-*/
-      break;
+      */
+    break;
     default:
-      break;
+    break;
   }
 }
-
-
 function phptemplate_link_formatter_default($element) {
-switch($element['#field_name']) {
-case 'field_social_media_site':
-if($element['#item']['url']) {
-/* dpm($element); */
-          $imgtag = theme_image(ousa_get_socialmedia_icon($element['#item']['url']));
-          $url = $element['#item']['query'] ? $element['#item']['url'] . '?' . $element['#item']['query'] : $element['#item']['url'];
-        $smlinks = l($imgtag,$url,array('html'=>TRUE,'attributes'=>array('target'=>'_blank', 'title'=>$element['#item']['title'] . ' (click to go open this website in a new window)')));
-        return '<span class="button">'.$smlinks.'</span>';
-}
-break;
-default:
-  // Display a normal link if both title and URL are available.
-  if (!empty($element['#item']['display_title']) && !empty($element['#item']['url'])) {
-    return l($element['#item']['display_title'], $element['#item']['url'], $element['#item']);
+  switch ($element['#field_name']) {
+    case 'field_social_media_site':
+      if ($element['#item']['url']) {
+        /* dpm($element); */
+        $imgtag = theme_image(ousa_get_socialmedia_icon($element['#item']['url']));
+        $url = $element['#item']['query'] ? $element['#item']['url'] . '?' . $element['#item']['query'] : $element['#item']['url'];
+        $smlinks = l($imgtag, $url, array('html' => TRUE, 'attributes' => array('target' => '_blank', 'title' => $element['#item']['title'] . ' (click to go open this website in a new window)')));
+        return '<span class="button">' . $smlinks . '</span>';
+      }
+    break;
+    default:
+      // Display a normal link if both title and URL are available.
+      if (!empty($element['#item']['display_title']) && !empty($element['#item']['url'])) {
+        return l($element['#item']['display_title'], $element['#item']['url'], $element['#item']);
+      }
+      // If only a title, display the title.
+      elseif (!empty($element['#item']['display_title'])) {
+        return check_plain($element['#item']['display_title']);
+      }
+    break;
   }
-  // If only a title, display the title.
-  elseif (!empty($element['#item']['display_title'])) {
-    return check_plain($element['#item']['display_title']);
-  }
-break;
-}
 }
