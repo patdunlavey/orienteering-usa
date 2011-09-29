@@ -74,6 +74,10 @@ function ousa_theme(&$existing, $type, $theme, $path) {
 
   /*
 
+
+
+
+
   $hooks['hook_name_here'] = array( // Details go here );
   */
 
@@ -284,7 +288,18 @@ function phptemplate_link_formatter_default($element) {
       if ($element['#item']['url']) {
 
         /* dpm($element); */
-        $imgtag = theme_image(ousa_get_socialmedia_icon($element['#item']['url']));
+        $faviconpath = ousa_get_socialmedia_icon($element['#item']['url']);
+
+        if (is_array($faviconpath)) {
+
+          if (isset($faviconpath['dynamic_favicon'])) {
+            $imgtag = theme_image($faviconpath['dynamic_favicon'],'','', NULL, FALSE);
+          } else {
+            $imgtag = theme_image($faviconpath['default']);
+          }
+        } else {
+          $imgtag = theme_image(ousa_get_socialmedia_icon($element['#item']['url']));
+        }
         $url = $element['#item']['query'] ? $element['#item']['url'] . '?' . $element['#item']['query'] : $element['#item']['url'];
         $smlinks = l($imgtag, $url, array(
           'html' => TRUE,

@@ -199,6 +199,7 @@ function ousa_init() {
 
 }
 
+
 function ousa_get_socialmedia_icon($urlstring) {
 
   $filepath = drupal_get_path('module', 'ousa') . '/socialmediaicons/';
@@ -260,7 +261,10 @@ function ousa_get_socialmedia_icon($urlstring) {
       return $filepath . 'googlegroups.png';
     break;
     default:
-      return $filepath . 'default.png';
+      $result = array();
+      $result['dynamic_favicon'] = "http://www.google.com/s2/favicons?domain=" . $urlstring;
+      $result['default'] = $filepath . 'default.png';
+      return $result;
     break;
   }
 }
