@@ -1,13 +1,12 @@
-; $Id: date_tools.info,v 1.1.2.1 2009/01/10 20:06:10 karens Exp $
 name = Date Tools
 description = Tools to import and auto-create dates and calendars.
 dependencies[] = content
 dependencies[] = date
 package = Date/Time
 core = 6.x
-; Information added by drupal.org packaging script on 2010-08-14
-version = "6.x-2.6"
+; Information added by Drupal.org packaging script on 2014-03-31
+version = "6.x-2.10"
 core = "6.x"
 project = "date"
-datestamp = "1281786990"
+datestamp = "1396284252"
 
