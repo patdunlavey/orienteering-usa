@@ -1,5 +1,4 @@
 <?php
-// $Id: comment.views_default.inc,v 1.7.4.1 2010/03/10 20:02:26 merlinofchaos Exp $
 /**
  * @file
  * Contains default views on behalf of the comment module.
@@ -13,9 +12,7 @@ function comment_views_default_views() {
   $view->name = 'comments_recent';
   $view->description = 'Contains a block and a page to list recent comments; the block will automatically link to the page, which displays the comment body as well as a link to the node.';
   $view->tag = 'default';
-  $view->view_php = '';
   $view->base_table = 'comments';
-  $view->is_cacheable = '0';
   $view->api_version = 2;
   $view->disabled = TRUE; /* Edit this to true to make a default view disabled initially */
   $handler = $view->new_display('default', 'Defaults', 'default');
@@ -74,9 +71,9 @@ function comment_views_default_views() {
     ),
   ));
   $handler->override_option('access', array(
-    'type' => 'none',
+    'type' => 'perm',
     'role' => array(),
-    'perm' => '',
+    'perm' => 'access comments',
   ));
   $handler->override_option('title', 'Recent comments');
   $handler->override_option('items_per_page', 5);
@@ -148,9 +145,7 @@ function comment_views_default_views() {
   $view->name = 'tracker';
   $view->description = 'Shows all new activity on system.';
   $view->tag = 'default';
-  $view->view_php = '';
   $view->base_table = 'node';
-  $view->is_cacheable = '0';
   $view->api_version = 2;
   $view->disabled = TRUE; /* Edit this to true to make a default view disabled initially */
   $handler = $view->new_display('default', 'Defaults', 'default');
@@ -293,9 +288,9 @@ function comment_views_default_views() {
     ),
   ));
   $handler->override_option('access', array(
-    'type' => 'none',
+    'type' => 'perm',
     'role' => array(),
-    'perm' => '',
+    'perm' => 'access content',
   ));
   $handler->override_option('title', 'Recent posts');
   $handler->override_option('items_per_page', '25');

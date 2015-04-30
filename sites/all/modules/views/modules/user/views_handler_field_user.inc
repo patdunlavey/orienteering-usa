@@ -1,5 +1,4 @@
 <?php
-// $Id: views_handler_field_user.inc,v 1.3 2009/01/30 00:01:42 merlinofchaos Exp $
 
 /**
  * Field handler to provide simple renderer that allows linking to a user.
@@ -8,7 +7,7 @@ class views_handler_field_user extends views_handler_field {
   /**
    * Override init function to provide generic option to link to user.
    */
-  function init(&$view, &$data) {
+  function init(&$view, $data) {
     parent::init($view, $data);
     if (!empty($this->options['link_to_user'])) {
       $this->additional_fields['uid'] = 'uid';
