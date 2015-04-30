@@ -3,9 +3,9 @@ name=Custom Publishing Options
 description=Adds the abilty to add Custom publishing options to the node Add/Edit form.
 core=6.x
 package=Other
-; Information added by drupal.org packaging script on 2010-03-02
-version = "6.x-1.0"
+; Information added by drupal.org packaging script on 2012-08-14
+version = "6.x-1.5"
 core = "6.x"
 project = "custom_pub"
-datestamp = "1267545008"
+datestamp = "1344983807"
 
