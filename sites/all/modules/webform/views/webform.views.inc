@@ -1,12 +1,42 @@
 <?php
-// $Id: webform.views.inc,v 1.2 2010/02/09 20:08:04 quicksketch Exp $
 
 /**
-* @file
-* Views hooks implemented for the Webform module.
-*/
+ * @file
+ * Views hooks implemented for the Webform module.
+ */
 
 function webform_views_data() {
+
+  /**
+   * Webform table definitions.
+   */
+  $data['webform']['table']['group'] = t('Webform');
+  $data['webform']['table']['join'] = array(
+    'node' => array(
+      'left_field' => 'nid',
+      'field' => 'nid',
+      'type' => 'INNER',
+    ),
+  );
+
+  // status
+  $data['webform']['status'] = array(
+    'title' => t('Status'),
+    'help' => t('The open or closed status of a webform.'),
+    'field' => array(
+      'handler' => 'webform_handler_field_webform_status',
+      'click sortable' => TRUE,
+    ),
+    'filter' => array(
+      'label' => t('Status'),
+      'handler' => 'webform_handler_filter_webform_status',
+      'type' => 'open-closed',
+    ),
+    'sort' => array(
+      'handler' => 'views_handler_sort',
+    ),
+  );
+
   /**
    * Submissions table definitions.
    */
@@ -14,7 +44,7 @@ function webform_views_data() {
   $data['webform_submissions']['table']['base'] = array(
     'field' => 'sid',
     'title' => t('Webform submissions'),
-    'help' => t('Submissions grenerated from Webform forms.'),
+    'help' => t('Submissions generated from Webform forms.'),
   );
 
   // sid
@@ -32,29 +62,32 @@ function webform_views_data() {
     'sort' => array(
       'handler' => 'views_handler_sort',
     ),
+    'argument' => array(
+      'handler' => 'views_handler_argument_numeric',
+    ),
   );
 
   // nid
   $data['webform_submissions']['nid'] = array(
     'title' => t('Node'),
-    'help' => t('The node these submissions were generated from.'),
+    'help' => t('The webform node this submission was generated from.'),
     'relationship' => array(
       'base' => 'node',
+      'field' => 'nid',
       'handler' => 'views_handler_relationship',
-      'label' => t('Node'),
-      'skip base' => array('node', 'node_revisions'),
+      'label' => t('Webform Node'),
     ),
   );
 
   // uid
   $data['webform_submissions']['uid'] = array(
     'title' => t('User'),
-    'help' => t('The users who submitted these submissions.'),
+    'help' => t('The user who sent the webform submission.'),
     'relationship' => array(
       'base' => 'users',
+      'field' => 'uid',
       'handler' => 'views_handler_relationship',
-      'label' => t('User'),
-      'skip base' => array('users', 'node', 'node_revisions'),
+      'label' => t('Webform Submission User'),
     ),
   );
 
@@ -142,11 +175,30 @@ function webform_views_data() {
 }
 
 /**
- * Implementation of hook_views_data_alter().
+ * Implements hook_views_data_alter().
  */
 function webform_views_data_alter(&$data) {
-  // submission count (node)
+  // Webform submission from node.
+  $data['node']['webform_submission'] = array(
+    'title' => t('Webform submission'),
+    'help' => t('Webform submissions of the given Webform node.'),
+    'real field' => 'nid',
+    'relationship' => array(
+      'base' => 'webform_submissions',
+      'base field' => 'nid',
+      'relationship field' => 'nid',
+      'handler' => 'views_handler_relationship',
+      'label' => t('Webform Submission'),
+    ),
+  );
+  $data['node']['table']['join']['webform_submissions'] = array(
+    'field' => 'nid',
+    'left_field' => 'nid',
+    'left_table' => 'webform_submissions',
+  );
+  // Submission count (node).
   $data['node']['webform_submission_count_node'] = array(
+    'group' => t('Webform'),
     'field' => array(
       'title' => t('Webform submission count'),
       'help' => t('The number of webform submissions on this node.'),
@@ -155,7 +207,21 @@ function webform_views_data_alter(&$data) {
     ),
   );
 
-  // submission count (user)
+
+  // Webform submission of user.
+  $data['users']['webform_submission'] = array(
+    'title' => t('Webform submission'),
+    'help' => t('Webform submissions of the given user.'),
+    'real field' => 'uid',
+    'relationship' => array(
+      'base' => 'webform_submissions',
+      'base field' => 'uid',
+      'relationship field' => 'uid',
+      'handler' => 'views_handler_relationship',
+      'label' => t('Webform Submission'),
+    ),
+  );
+  // Submission count (user).
   $data['users']['webform_submission_count_user'] = array(
     'field' => array(
       'title' => t('Webform submission count'),
@@ -165,8 +231,29 @@ function webform_views_data_alter(&$data) {
     ),
   );
 
-  // webform body
+  // Link for editing the webform.
+  $data['node']['webform_edit'] = array(
+    'group' => t('Webform'),
+    'field' => array(
+      'title' => t('Webform edit link'),
+      'help' => t('Provide a simple link to edit the webform components and configuration.'),
+      'handler' => 'webform_handler_field_node_link_edit',
+    ),
+  );
+
+  // Link for viewing webform results.
+  $data['node']['webform_results'] = array(
+    'group' => t('Webform'),
+    'field' => array(
+      'title' => t('Webform results link'),
+      'help' => t('Provide a simple link to view the results of a webform.'),
+      'handler' => 'webform_handler_field_node_link_results',
+    ),
+  );
+
+  // Webform form content.
   $data['node']['webform_form_body'] = array(
+    'group' => t('Webform'),
     'field' => array(
       'title' => t('Webform form body'),
       'help' => t('The Webform form body display for this node.'),
@@ -176,7 +263,7 @@ function webform_views_data_alter(&$data) {
 }
 
 /**
- * Implementation of hook_views_handlers().
+ * Implements hook_views_handlers().
  */
 function webform_views_handlers() {
   return array(
@@ -192,6 +279,12 @@ function webform_views_handlers() {
         'parent' => 'views_handler_field',
         'file' => 'webform_handler_field_submission_count.inc',
       ),
+      'webform_handler_field_node_link_edit' => array(
+        'parent' => 'views_handler_field_node_link',
+      ),
+      'webform_handler_field_node_link_results' => array(
+        'parent' => 'views_handler_field_node_link',
+      ),
       'webform_handler_field_form_body' => array(
         'parent' => 'views_handler_field',
         'file' => 'webform_handler_field_form_body.inc',
@@ -203,6 +296,14 @@ function webform_views_handlers() {
       'webform_handler_filter_is_draft' => array(
         'parent' => 'views_handler_filter_in_operator',
         'file' => 'webform_handler_filter_is_draft.inc',
+      ),
+      'webform_handler_field_webform_status' => array(
+        'parent' => 'views_handler_field_boolean',
+        'file' => 'webform_handler_field_webform_status.inc',
+      ),
+      'webform_handler_filter_webform_status' => array(
+        'parent' => 'views_handler_filter_boolean_operator',
+        'file' => 'webform_handler_filter_webform_status.inc',
       ),
     ),
   );

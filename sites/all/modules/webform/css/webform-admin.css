@@ -1,17 +1,33 @@
-/* $Id: webform-admin.css,v 1.1.2.1 2010/04/10 22:02:09 quicksketch Exp $ */
+/**
+ * @file
+ * Styles that are used when viewing results or modifying webform settings.
+ */
 
-.webform-display-item {
-  margin-top: 0.5em;
-  margin-bottom: 0.5em;
+/* Submission view page */
+.webform-submission-info {
+  padding: 10px;
 }
-.webform-display-item label {
-  display: inline;
+.webform-submission-info .user-picture {
+  float: right;
+  margin-left: 10px;
+}
+.webform-submission-info-text {
+  overflow: hidden;
+}
+.webform-submission-actions {
+  float: left;
 }
 .webform-submission-navigation {
   text-align: right;
 }
 .webform-submission-next {
   margin-left: 20px;
+}
+
+/* Element for selecting components, i.e. included components for e-mails. */
+.webform-component-select-wrapper {
+  max-height: 300px;
+  overflow: auto;
 }
 .webform-component-select-table table {
   margin: 0;
@@ -44,6 +60,8 @@ tr.webform-pagebreak td {
 td.webform-pagebreak {
   font-weight: bold;
 }
+
+/* Special theming for the options element widget (if installed) */
 .webform-options-element thead {
   display: none;
 }
@@ -56,9 +74,30 @@ td.webform-pagebreak {
 .webform-options-element fieldset legend {
   display: none;
 }
+
+/* Checkboxes for allowed file extensions */
+table.webform-file-extensions td {
+  vertical-align: top;
+}
+table.webform-file-extensions td .description {
+  white-space: normal;
+}
+table.webform-file-extensions .form-checkboxes .form-item {
+  width: 5em;
+  float: left;
+}
+table.webform-file-extensions input.form-text {
+  width: 95%;
+}
+
+/* General styles */
 .webform-checkbox {
   text-align: center;
   width: 40px;
+}
+.webform-container-inline div,
+.webform-container-inline div.form-item {
+  display: inline;
 }
 .webform-default-value {
   color: #999;
@@ -66,6 +105,8 @@ td.webform-pagebreak {
 .webform-results-per-page a.selected {
   font-weight: bold;
 }
+
+/* Display of adding/editing components */
 html.js fieldset.webform-position,
 html.js div.webform-position {
   display: none;

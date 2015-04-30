@@ -1,5 +1,4 @@
 <?php
-// $Id: webform.install,v 1.40.2.13 2010/07/27 06:08:00 quicksketch Exp $
 
 /**
  * @file
@@ -7,7 +6,7 @@
  */
 
 /**
- * Implementation of hook_schema().
+ * Implements hook_schema().
  */
 function webform_schema() {
   $schema = array();
@@ -29,6 +28,7 @@ function webform_schema() {
       'confirmation_format' => array(
         'description' => 'The input format used by the confirmation message.',
         'type' => 'int',
+        'size' => 'tiny',
         'not null' => TRUE,
         'default' => 0,
       ),
@@ -36,6 +36,21 @@ function webform_schema() {
         'description' => 'The URL a user is redirected to after submitting a form.',
         'type' => 'varchar',
         'length' => 255,
+        'default' => '<confirmation>',
+      ),
+      'status' => array(
+        'description' => 'Boolean value of a webform for open (1) or closed (0).',
+        'type' => 'int',
+        'size' => 'tiny',
+        'not null' => TRUE,
+        'default' => 1,
+      ),
+      'block' => array(
+         'description' => 'Boolean value for whether this form be available as a block.',
+         'type' => 'int',
+         'size' => 'tiny',
+         'not null' => TRUE,
+         'default' => 0,
       ),
       'teaser' => array(
         'description' => 'Boolean value for whether the entire form should be displayed on the teaser.',
@@ -51,12 +66,19 @@ function webform_schema() {
          'not null' => TRUE,
          'default' => 0,
       ),
+      'auto_save' => array(
+         'description' => 'Boolean value for whether submissions to this form should be auto-saved between pages.',
+         'type' => 'int',
+         'size' => 'tiny',
+         'not null' => TRUE,
+         'default' => 0,
+      ),
       'submit_notice' => array(
         'description' => 'Boolean value for whether to show or hide the previous submissions notification.',
         'type' => 'int',
         'size' => 'tiny',
         'not null' => TRUE,
-        'default' => 0,
+        'default' => 1,
       ),
       'submit_text' => array(
         'description' => 'The title of the submit button on the form.',
@@ -72,6 +94,18 @@ function webform_schema() {
       ),
       'submit_interval' => array(
         'description' => 'The amount of time in seconds that must pass before a user can submit another submission within the set limit.',
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => -1,
+      ),
+      'total_submit_limit' => array(
+        'description' => 'The total number of submissions allowed within an interval. -1 is unlimited.',
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => -1,
+      ),
+      'total_submit_interval' => array(
+        'description' => 'The amount of time in seconds that must pass before another submission can be submitted within the set limit.',
         'type' => 'int',
         'not null' => TRUE,
         'default' => -1,
@@ -200,6 +234,22 @@ function webform_schema() {
         'type' => 'text',
         'not null' => TRUE,
       ),
+      'html' => array(
+        'description' => 'Determines if the e-mail will be sent in an HTML format. Requires Mime Mail module.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'size' => 'tiny',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'attachments' => array(
+        'description' => 'Determines if the e-mail will include file attachments. Requires Mime Mail module.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'size' => 'tiny',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
     ),
     'primary key' => array('nid', 'eid'),
   );
@@ -267,10 +317,14 @@ function webform_schema() {
         'length' => 128,
       ),
     ),
+    'primary key' => array('sid'),
     'unique keys' => array(
       'sid_nid' => array('sid', 'nid'),
     ),
-    'primary key' => array('sid'),
+    'indexes' => array(
+      'nid_uid_sid' => array('nid', 'uid', 'sid'),
+      'nid_sid' => array('nid', 'sid'),
+    ),
   );
 
   $schema['webform_submitted_data'] = array(
@@ -312,49 +366,97 @@ function webform_schema() {
         'not null' => TRUE,
       ),
     ),
+    'primary key' => array('nid', 'sid', 'cid', 'no'),
     'indexes' => array(
       'nid' => array('nid'),
       'sid_nid' => array('sid', 'nid'),
     ),
-    'primary key' => array('nid', 'sid', 'cid', 'no'),
+  );
+
+  $schema['webform_last_download'] = array(
+   'description' => 'Stores last submission number per user download.',
+    'fields' => array(
+      'nid' => array(
+        'description' => 'The node identifier of a webform.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'uid' => array(
+       'description' => 'The user identifier.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+     'sid' => array(
+        'description' => 'The last downloaded submission number.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+     'requested' => array(
+        'description' => 'Timestamp of last download request.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+    ),
+    'primary key' => array('nid', 'uid'),
   );
 
   return $schema;
 }
 
 /**
- * Implementation of hook_install().
+ * Implements hook_install().
  */
 function webform_install() {
   module_load_include('inc', 'node', 'content_types');
-  db_query("UPDATE {system} SET weight = -1 WHERE name='webform' AND type='module'");
+  db_query("UPDATE {system} SET weight = -1 WHERE name = 'webform' AND type = 'module'");
   drupal_install_schema('webform');
 
-  // Create the default webform type.
-  $webform_type = array(
-    'type' => 'webform',
-    'name' => st('Webform'),
-    'module' => 'node',
-    'description' => st('Create a new form or questionnaire accessible to users. Submission results and statistics are recorded and accessible to privileged users.'),
-    'custom' => TRUE,
-    'modified' => TRUE,
-    'locked' => FALSE,
-  );
-  $webform_type = (object) _node_type_set_defaults($webform_type);
-  node_type_save($webform_type);
+  // Optionally create the default webform type.
+  if (variable_get('webform_install_create_content_type', TRUE)) {
+    $webform_type = array(
+      'type' => 'webform',
+      'name' => st('Webform'),
+      'module' => 'node',
+      'description' => st('Create a new form or questionnaire accessible to users. Submission results and statistics are recorded and accessible to privileged users.'),
+      'custom' => TRUE,
+      'modified' => TRUE,
+      'locked' => FALSE,
+    );
+    $webform_type = (object) _node_type_set_defaults($webform_type);
+    node_type_save($webform_type);
+  }
 }
 
 /**
- * Implementation of hook_uninstall().
+ * Implements hook_uninstall().
  */
 function webform_uninstall() {
   // Unset webform variables.
+  variable_del('webform_node_types');
+  variable_del('webform_node_types_primary');
+  variable_del('webform_disabled_components');
   variable_del('webform_use_cookies');
-  variable_del('webform_enable_fieldset');
   variable_del('webform_default_from_address');
   variable_del('webform_default_from_name');
   variable_del('webform_default_subject');
+  variable_del('webform_default_format');
+  variable_del('webform_format_override');
   variable_del('webform_csv_delimiter');
+  variable_del('webform_allowed_tags');
+  variable_del('webform_blocks');
+  variable_del('webform_search_index');
+  variable_del('webform_email_address_format');
+  variable_del('webform_export_format');
+  variable_del('webform_submission_access_control');
+  variable_del('webform_update_batch_size');
 
   $component_list = array();
   $path = drupal_get_path('module', 'webform') . '/components';
@@ -369,6 +471,25 @@ function webform_uninstall() {
 
   // Drop tables.
   drupal_uninstall_schema('webform');
+}
+
+/**
+ * Implements hook_requirements().
+ */
+function webform_requirements($phase) {
+  $requirements = array();
+  $t = get_t();
+
+  if (version_compare(VERSION, '6.16') < 0) {
+    $requirements['webform_drupal_version'] = array(
+      'title' => $t('Webform'),
+      'value' => VERSION,
+      'severity' => REQUIREMENT_ERROR,
+      'description' => $t('Webform requires at least version @version of Drupal core.', array('@version' => '6.16')),
+    );
+  }
+
+  return $requirements;
 }
 
 /**
@@ -555,7 +676,7 @@ function webform_update_6205() {
 
   // Set not null property on webform_component.value.
   db_change_field($ret, 'webform_component', 'value', 'value', array('type' => 'text', 'not null' => TRUE));
- 
+
   // Set not null property on webform_component.extra.
   db_change_field($ret, 'webform_component', 'extra', 'extra', array('type' => 'text', 'not null' => TRUE));
 
@@ -719,6 +840,10 @@ function webform_update_6304() {
   if (!db_affected_rows()) {
     $ret[] = update_sql("INSERT INTO {node_type} (type, name, module, description, help, has_title, title_label, has_body, body_label, min_word_count, custom, modified, locked, orig_type) VALUES ('webform', 'Webform', 'node', 'Create a new form or questionnaire accessible to users. Submission results and statistics are recorded and accessible to privileged users.', '', 1, 'Title', 1, 'Body', 0, 1, 1, 0, 'webform')");
   }
+
+  // This variable for some reason must be set manually.
+  variable_set('webform_node_types', array('webform'));
+
   return $ret;
 }
 
@@ -740,7 +865,7 @@ function webform_update_6305() {
 
   $result = db_query("SELECT * FROM {role} r INNER JOIN {permission} p ON p.rid = r.rid");
   while ($role = db_fetch_object($result)) {
-    $role->perm = drupal_map_assoc(explode(', ', $role->perm));
+    $role->perm = drupal_map_assoc(explode(', ', db_escape_string($role->perm)));
     foreach ($updated_permissions as $old => $new) {
       if (isset($role->perm[$old])) {
         unset($role->perm[$old]);
@@ -805,7 +930,7 @@ function webform_update_6308() {
   $ret = array();
 
   // Add the new column to the e-mail table.
-  db_add_field($ret, 'webform_emails', 'excluded_components', array('type' => 'text', 'not null' => TRUE));
+  db_add_field($ret, 'webform_emails', 'excluded_components', array('type' => 'text', 'not null' => TRUE, 'initial' => ''));
 
   // Build up our EXCLUSION lists, finding all components not in e-mails.
   $result = db_query("SELECT nid, cid FROM {webform_component} WHERE email = 0 ORDER BY nid");
@@ -842,7 +967,7 @@ function webform_update_6309() {
   while ($role = db_fetch_object($result)) {
     $perms = explode(',', $role->perm);
     foreach ($perms as $id => $perm) {
-      $perms[$id] = trim($perm);
+      $perms[$id] = db_escape_string(trim($perm));
     }
     $ret[] = update_sql("UPDATE {permission} SET perm = '" . implode(', ', $perms) . "' WHERE rid = " . $role->rid);
   }
@@ -1066,8 +1191,19 @@ function webform_update_6313() {
     db_query("UPDATE {webform_component} SET extra = '%s' WHERE nid = %d AND cid = %d", serialize($extra), $row->nid, $row->cid);
 
     // Convert the option values into keys if new ones were created.
-    foreach ($new_keys as $delta => $new_key) {
-      db_query("UPDATE {webform_submitted_data} SET data = '%s' WHERE nid = %d AND cid = %d AND data = '%s'", $new_key, $row->nid, $row->cid, $values[$delta]);
+    if (!empty($new_keys)) {
+      $args = array();
+      $sql = "UPDATE {webform_submitted_data} SET data = CASE data";
+      foreach ($new_keys as $delta => $new_key) {
+        $sql .= " WHEN '%s' THEN '%s'";
+        $args[] = $values[$delta];
+        $args[] = $new_key;
+      }
+
+      $sql .= " ELSE data END WHERE nid = %d AND cid = %d";
+      $args[] = $row->nid;
+      $args[] = $row->cid;
+      db_query($sql, $args);
     }
 
     // Note: Converting the question values into keys is not necessary because
@@ -1167,6 +1303,227 @@ function webform_update_6316() {
 function webform_update_6317() {
   $ret = array();
   $ret[] = update_sql("DELETE FROM {webform_emails} WHERE nid NOT IN (SELECT nid FROM {node})");
+  return $ret;
+}
+
+/**
+ * Ensure that the confirmation format column is correctly using size = 'tiny'.
+ */
+function webform_update_6318() {
+  $ret = array();
+  db_change_field($ret, 'webform', 'confirmation_format', 'confirmation_format', array('type' => 'int', 'size' => 'tiny', 'not null' => TRUE, 'default' => 0));
+  return $ret;
+}
+
+/**
+ * Add columns for e-mail HTML and attachment settings.
+ */
+function webform_update_6319() {
+  $ret = array();
+  if (!db_column_exists('webform_emails', 'html')) {
+    db_add_field($ret, 'webform_emails', 'html', array('type' => 'int', 'size' => 'tiny', 'unsigned' => TRUE, 'default' => 0, 'not null' => TRUE));
+    db_add_field($ret, 'webform_emails', 'attachments', array('type' => 'int', 'size' => 'tiny', 'unsigned' => TRUE, 'default' => 0, 'not null' => TRUE));
+  }
+  return $ret;
+}
+
+/**
+ * Set the default for the "submit_notice" column to 1.
+ */
+function webform_update_6320() {
+  $ret = array();
+  db_change_field($ret, 'webform', 'submit_notice', 'submit_notice', array('type' => 'int', 'size' => 'tiny', 'not null' => TRUE, 'default' => 1));
+  return $ret;
+}
+
+/**
+ * Add field for block feature and redirection setting.
+ */
+function webform_update_6321() {
+  $ret = array();
+  db_add_field($ret, 'webform', 'block', array('type' => 'int', 'size' => 'tiny', 'not null' => TRUE, 'default' => 0));
+  db_change_field($ret, 'webform', 'redirect_url', 'redirect_url', array('type' => 'varchar', 'length' => 255, 'default' => '<confirmation>'));
+  update_sql("UPDATE {webform} SET redirect_url = '<confirmation>' WHERE redirect_url = '' OR redirect_url IS NULL");
+  return $ret;
+}
+
+/**
+ * Set additional_validate and additional_submit columns to allow NULL.
+ */
+function webform_update_6322() {
+  $ret = array();
+  if (db_column_exists('webform', 'additional_validate')) {
+    db_change_field($ret, 'webform', 'additional_validate', 'additional_validate', array('type' => 'text', 'not null' => FALSE));
+    db_change_field($ret, 'webform', 'additional_submit', 'additional_submit', array('type' => 'text', 'not null' => FALSE));
+  }
+  return $ret;
+}
+
+/**
+ * Add column for webform status (open or closed).
+ */
+function webform_update_6323() {
+  $ret = array();
+  if (!db_column_exists('webform', 'status')) {
+    db_add_field($ret, 'webform', 'status', array('type' => 'int', 'size' => 'tiny', 'not null' => TRUE, 'default' => 1));
+  }
+  return $ret;
+}
+
+/**
+ * Add the ability to auto-save as draft between pages.
+ */
+function webform_update_6324() {
+  $ret = array();
+  db_add_field($ret, 'webform', 'auto_save', array('type' => 'int', 'size' => 'tiny', 'not null' => TRUE, 'default' => 0));
+  return $ret;
+}
+
+/**
+ * Remove orphaned and unnecessary rows in the webform table.
+ */
+function webform_update_6325() {
+  $ret = array();
+  $result = db_query("SELECT nid FROM {webform} WHERE
+    nid NOT IN
+    (SELECT DISTINCT(w1.nid) FROM {webform} w1 INNER JOIN {webform_component} wc ON w1.nid = wc.nid)
+    AND nid NOT IN
+    (SELECT w2.nid FROM {webform} w2 INNER JOIN {node} n ON w2.nid = n.nid WHERE n.type = 'webform')"
+  );
+  $empty_nids = array();
+  while ($row = db_fetch_object($result)) {
+    $empty_nids[] = $row->nid;
+  }
+  if (!empty($empty_nids)) {
+    $empty_list = implode(',', $empty_nids);
+    $ret[] = update_sql("DELETE FROM {webform} WHERE nid in ($empty_list)");
+  }
+  return $ret;
+}
+
+/**
+ * Add an index for nid_uid_sid to webform_submissions.
+ */
+function webform_update_6326() {
+  $ret = array();
+  db_add_index($ret, 'webform_submissions', 'nid_uid_sid', array('nid', 'uid', 'sid'));
+  return $ret;
+}
+
+/**
+ * Remove unused Webform variables.
+ */
+function webform_update_6327() {
+  $ret = array();
+  variable_del('node_types');
+  variable_del('components');
+  return $ret;
+}
+
+/**
+ * Convert the Date component start and end year options to start and end date.
+ */
+function webform_update_6328() {
+  $ret = array();
+
+  $result = db_query("SELECT * FROM {webform_component} WHERE type = 'date'");
+  while ($component = db_fetch_array($result)) {
+    $component['extra'] = unserialize($component['extra']);
+    if (!isset($component['extra']['start_date']) && !isset($component['end_date'])) {
+      foreach (array('year_start' => 'start_date', 'year_end' => 'end_date') as $key => $replacement) {
+        $value = isset($component['extra'][$key]) ? trim($component['extra'][$key]) : '';
+        // Relative years.
+        if (preg_match('/[-+][ ]*[0-9]+/', $value)) {
+          $component['extra'][$replacement] = ($value == 1) ? ($value . ' year') : ($value . ' years');
+        }
+        // Absolute years.
+        elseif (is_numeric($value)) {
+          $component['extra'][$replacement] = 'Dec 31 ' . $value;
+        }
+        unset($component['extra'][$key]);
+      }
+      $component['extra'] = serialize($component['extra']);
+      drupal_write_record('webform_component', $component, array('nid', 'cid'));
+    }
+  }
+
+  return $ret;
+}
+
+/**
+ * Add webform_last_download table to store last downloaded sid per user.
+ */
+function webform_update_6329() {
+  // Safety check to prevent recreating the webform_last_download table.
+  $ret = array();
+  if (db_table_exists('webform_last_download')) {
+    return $ret;
+  }
+
+  $schema['webform_last_download'] = array(
+    'description' => 'Stores last submission number per user download.',
+    'fields' => array(
+      'nid' => array(
+        'description' => 'The node identifier of a webform.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'uid' => array(
+        'description' => 'The user identifier.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'sid' => array(
+        'description' => 'The last downloaded submission number.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'requested' => array(
+        'description' => 'Timestamp of last download request.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+    ),
+    'primary key' => array('nid', 'uid'),
+  );
+
+  db_create_table($ret, 'webform_last_download', $schema['webform_last_download']);
+
+  return $ret;
+}
+
+/**
+ * Add additional columns for total submission limit.
+ */
+function webform_update_6330() {
+  $ret = array();
+  if (!db_column_exists('webform', 'total_submit_limit')) {
+    db_add_field($ret, 'webform', 'total_submit_limit', array('type' => 'int', 'not null' => TRUE, 'default' => -1));
+  }
+
+  if (!db_column_exists('webform', 'total_submit_interval')) {
+    db_add_field($ret, 'webform', 'total_submit_interval', array('type' => 'int', 'not null' => TRUE, 'default' => -1));
+  }
+
+  return $ret;
+}
+
+/**
+ * Add an index for nid_sid to webform_submissions.
+ */
+function webform_update_6331() {
+  // Even though we already have an index 'nid_uid_sid', adding the index for
+  // 'nid_sid' saves us a tablesort on the node/x/webform-results page.
+  $ret = array();
+  db_add_index($ret, 'webform_submissions', 'nid_sid', array('nid', 'sid'));
   return $ret;
 }
 

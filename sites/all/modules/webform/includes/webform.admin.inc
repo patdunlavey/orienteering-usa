@@ -1,5 +1,4 @@
 <?php
-// $Id: webform.admin.inc,v 1.4.2.3 2010/04/10 02:20:38 quicksketch Exp $
 
 /**
  * @file
@@ -70,6 +69,30 @@ function webform_admin_settings() {
     '#description' => t('The default subject line of any e-mailed results.'),
   );
 
+  $form['email']['webform_default_format']  = array(
+    '#type' => 'radios',
+    '#title' => t('Format'),
+    '#options' => array(
+      0 => t('Plain text'),
+      1 => t('HTML'),
+    ),
+    '#default_value' => variable_get('webform_default_format', 0),
+    '#description' => t('The default format for new e-mail settings. Webform e-mail options take precedence over the settings for system-wide e-mails configured in MIME mail.'),
+    '#access' => webform_email_html_capable(),
+  );
+
+  $form['email']['webform_format_override']  = array(
+    '#type' => 'radios',
+    '#title' => t('Format override'),
+    '#options' => array(
+      0 => t('Per-webform configuration of e-mail format'),
+      1 => t('Send all e-mails in the default format'),
+    ),
+    '#default_value' => variable_get('webform_format_override', 0),
+    '#description' => t('Force all webform e-mails to be sent in the default format.'),
+    '#access' => webform_email_html_capable(),
+  );
+
   $form['advanced'] = array(
     '#type' => 'fieldset',
     '#title' => t('Advanced options'),
@@ -83,6 +106,15 @@ function webform_admin_settings() {
     '#title' => t('Allow cookies for tracking submissions'),
     '#default_value' => variable_get('webform_use_cookies', 0),
     '#description' => t('<a href="http://www.wikipedia.org/wiki/HTTP_cookie">Cookies</a> can be used to help prevent the same user from repeatedly submitting a webform. This feature is not needed for limiting submissions per user, though it can increase accuracy in some situations. Besides cookies, Webform also uses IP addresses and site usernames to prevent repeated submissions.'),
+  );
+
+  $form['advanced']['webform_search_index']  = array(
+    '#type' => 'checkbox',
+    '#checked_value' => 1,
+    '#title' => t('Include webform forms in search index'),
+    '#default_value' => variable_get('webform_search_index', 1),
+    '#description' => t('When selected, all Webform nodes will have their form components indexed by the search engine.'),
+    '#access' => module_exists('search'),
   );
 
   $form['advanced']['webform_email_address_format'] = array(
@@ -132,11 +164,14 @@ function webform_admin_settings() {
 
   $form = system_settings_form($form);
   $form['#theme'] = 'webform_admin_settings';
-  $form['#submit'][] = 'webform_admin_settings_submit';
+  array_unshift($form['#submit'], 'webform_admin_settings_submit');
 
   return $form;
 }
 
+/**
+ * Submit handler for the webform_admin_settings() form.
+ */
 function webform_admin_settings_submit($form, &$form_state) {
   $disabled_components = array();
   foreach ($form_state['values']['components'] as $name => $enabled) {
@@ -144,17 +179,18 @@ function webform_admin_settings_submit($form, &$form_state) {
       $disabled_components[] = $name;
     }
   }
-  variable_set('webform_disabled_components', $disabled_components);
+  // Update $form_state and let system_settings_form_submit() handle saving.
+  $form_state['values']['webform_disabled_components'] = $disabled_components;
+  unset($form_state['values']['components']);
 
-  $webform_types = array();
-  foreach ($form_state['values']['node_types'] as $type) {
-    if ($type) {
-      $webform_types[] = $type;
-    }
-  }
-  variable_set('webform_node_types', $webform_types);
+  // Change the name of the node type variable and clean it up.
+  $form_state['values']['webform_node_types'] = array_keys(array_filter($form_state['values']['node_types']));
+  unset($form_state['values']['node_types']);
 }
 
+/**
+ * Theme the output of the webform_admin_settings() form.
+ */
 function theme_webform_admin_settings($form) {
   // Format the components into a table.
   foreach (element_children($form['components']) as $key) {
@@ -221,7 +257,7 @@ function theme_webform_admin_content($nodes) {
   $header = array(
     t('Title'),
     array('data' => t('View'), 'colspan' => '4'),
-    array('data' => t('Operations'), 'colspan' => '2')
+    array('data' => t('Operations'), 'colspan' => '3')
   );
 
   $rows = array();
@@ -233,6 +269,7 @@ function theme_webform_admin_content($nodes) {
       l(t('Table'), 'node/' . $node->nid . '/webform-results/table'),
       l(t('Download'), 'node/' . $node->nid . '/webform-results/download'),
       node_access('update', $node) ? l(t('Edit'), 'node/' . $node->nid . '/edit') : '',
+      node_access('update', $node) ? l(t('Components'), 'node/' . $node->nid . '/webform') : '',
       user_access('delete all webform submissions') ? l(t('Clear'), 'node/' . $node->nid . '/webform-results/clear') : '',
     );
   }
