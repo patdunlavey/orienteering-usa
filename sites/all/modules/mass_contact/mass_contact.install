@@ -1,5 +1,4 @@
 <?php
-// $Id: mass_contact.install,v 1.5.2.4 2010/04/30 20:39:50 oadaeh Exp $
 
 /**
  * @file
@@ -78,24 +77,7 @@ function mass_contact_uninstall() {
 
 //  db_query('DELETE FROM node_type WHERE type = "mass_contact"');
 
-  variable_del('mass_contact_attachment_location');
-  variable_del('mass_contact_bcc_d');
-  variable_del('mass_contact_bcc_d_override');
-  variable_del('mass_contact_category_override');
-  variable_del('mass_contact_character_set');
-  variable_del('mass_contact_default_sender_changable');
-  variable_del('mass_contact_default_sender_email');
-  variable_del('mass_contact_default_sender_name');
-  variable_del('mass_contact_form_information');
-  variable_del('mass_contact_html_d');
-  variable_del('mass_contact_html_d_override');
-  variable_del('mass_contact_hourly_threshold');
-  variable_del('mass_contact_message_prefix');
-  variable_del('mass_contact_message_suffix');
-  variable_del('mass_contact_nodecc_d');
-  variable_del('mass_contact_nodecc_d_override');
-  variable_del('mass_contact_optout_d');
-  variable_del('mass_contact_recipient_limit');
+  db_query("DELETE FROM {variable} WHERE name LIKE 'mass_contact_%'");
 }
 
 
@@ -126,9 +108,7 @@ function mass_contact_update_6000() {
  */
 function mass_contact_update_6001() {
   $ret = array();
-
   $ret[] = update_sql("UPDATE {variable} SET name = 'mass_contact_html_d' WHERE name = 'mass_contact_HTML_d'");
-
   return $ret;
 }
 
@@ -140,10 +120,19 @@ function mass_contact_update_6001() {
  */
 function mass_contact_update_6002() {
   $ret = array();
-
   // Can't use db_field_set_default() due to Drupal bug http://drupal.org/node/517642
   $ret[] = update_sql('ALTER TABLE {mass_contact} ALTER COLUMN weight SET DEFAULT 0');
   $ret[] = update_sql('ALTER TABLE {mass_contact} ALTER COLUMN selected SET DEFAULT 0');
-
   return $ret;
+}
+
+
+/**
+ * Implementation of hook_update().
+ *
+ * Remove a now unused variable.
+ */
+function mass_contact_update_6003() {
+  variable_del('mass_contact_when_to_optout');
+  return array();
 }

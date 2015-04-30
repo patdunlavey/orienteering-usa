@@ -1,4 +1,102 @@
-$Id: CHANGELOG.txt,v 1.8.2.22 2010/04/30 23:36:37 oadaeh Exp $
+2013-08-21 Jason Flatt drupal@oadaeh.net
+  * mass_contact.admin.inc, mass_contact.page.inc:
+    * Give the admin the choice of using either check boxes or select lists when
+      displaying the category list to the message sender. Fixes
+      https://drupal.org/node/1061120.
+
+2013-08-13 Jason Flatt drupal@oadaeh.net
+  * mass_contact.module: Add a mechanism for queuing the messages to be sent
+    during Cron runs.
+
+2013-03-08 Jason Flatt drupal@oadaeh.net
+  * mass_contact.module: Potential fixes for http://drupal.org/node/1908260:
+    Change the email addresses to have quotes around the name.
+    Defaulted the option to include names to no (0).
+
+2012-11-20 Jason Flatt drupal@oadaeh.net
+  * mass_contact.module: Fix problem w/sender information defaulting to site's
+    default sender information. http://drupal.org/node/1833736
+    Add the option of including the users' name in the address.
+    https://drupal.org/node/574482
+
+2012-09-15 Jason Flatt drupal@oadaeh.net
+  * mass_contact.module: Remove an unnecessary & in a function call. Fixes
+    http://drupal.org/node/1785654.
+
+2012-09-05 Jason Flatt drupal@oadaeh.net
+  * mass_contact.module: Fix a problem where it was possible to bypass
+    permissions after the main message form was submitted, per mjorlitzky.
+    Related security advisory is here: http://drupal.org/node/1782832
+
+2011-11-30 Jason Flatt drupal@oadaeh.net
+  * mass_contact.module: Fixed bug where the default node type workflow
+    settings were not being respected upon saving the archived copy
+    (http://drupal.org/node/1356068).
+    Removed unnecessary database query.
+    Fixed watchdog function call to log node creation.
+    Addded the option to exclude some parts of the sent message from the
+    archived copy.
+
+2011-11-25 Jason Flatt drupal@oadaeh.net
+  * mass_contact.module: Added closing p tags (http://drupal.org/node/1340436).
+
+2010-10-08 Jason Flatt drupal@oadaeh.net
+  * mass_contact.module: Fixed problem with input formats not displaying
+    correctly (http://drupal.org/node/294433, http://drupal.org/node/934222).
+    Added an administrative option to specify when to check the HTML markup
+    (http://drupal.org/node/468464).
+    Converted several function calls to variables in the code ralated to the
+    above activity to reduce the amount of processing needed and to improve
+    the readability of the code.
+    Fixed a bug (unrelated to the first item) with selecting the wrong input
+    filter when building the message body.
+    Fixed a problem when showing opt out options for users that are not a part
+    of any categories (http://drupal.org/node/812518). Also, removed the when
+    users may opt out as part of this fix.
+    Added the ability for site administrator to specify what they want their
+    opt-out message to say.
+
+2010-10-05 Jason Flatt drupal@oadaeh.net
+  * mass_contact.module: Removed reference to max_file_uploads, as it's only
+    in newer versions of PHP.
+
+2010-08-30 Jason Flatt drupal@oadaeh.net
+  * mass_contact.install: Fix variable deletion query.
+
+2010-08-27 Jason Flatt drupal@oadaeh.net
+  * mass_contact.module: Correct the way a node type is created
+    (http://drupal.org/node/894696).
+
+2010-08-26 Jason Flatt drupal@oadaeh.net
+  * mass_contact.install: Made variable removal encompassing during uninstall.
+  * mass_contact.module: Make the closing boundary line the correct format.
+    Removed some unnecessary CR/LFs.
+
+2010-08-22 Jason Flatt drupal@oadaeh.net
+  * mass_contact.module: Made the field for maximum recipients larger.
+    Removed the setting of the weight for the send to self option, so that it
+    wasn't all the way at the bottom of the main message form.
+    Made the main menu link enabled by default.
+  * README.txt: Updated the documentation, so that it was current and
+    accurate. Also included a number of user recommendations.
+
+2010-08-21 Jason Flatt drupal@oadaeh.net
+  * mass_contact.module: Changed attachment behavior to allow multiple
+    attachments, the number being defined by the system administrator.
+    In doing the above, updated and/or fixed various MIME behaviors and/or
+    settings.
+    Made message attachments actual file attachments when saving the message
+    as a node.
+    Removed hard coded node settings when saving a node, per dabro in
+    http://drupal.org/node/889846.
+
+2010-05-11 Jason Flatt drupal@oadaeh.net
+  * mass_contact.module: Separated the administrative settings page into
+    three pages.
+  * mass_contact.module, mass_contact.install: Added the ability to specify
+    the input format for the message prefix, the user's message text, and the
+    message suffix, along with allowing the user to change the input format
+    for the user's message text or not.
 
 2010-04-30 Jason Flatt drupal@oadaeh.net
   * mass_contact.module: Added the option to specify when to allow opting out
