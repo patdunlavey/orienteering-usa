@@ -84,16 +84,6 @@
 
 <?php print $sidebar_second; ?>
 
-<div id="block-block-1" class="block block-block region-odd even region-count-1 count-2 with-block-editing">
-      <h2 class="title">Featured News</h2>
-  
-  <div class="content">
-
-    <ul id="twitter_update_list"></ul>
-  </div>
-</div>
-
-
 <?php include ('copyright.php') ?>
 
 
