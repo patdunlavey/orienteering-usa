@@ -43,12 +43,13 @@
 
 <div id="head" class="holder"><div id="head-inner" class="sector">
 <a href="<?php print $front_page; ?>" title="<?php print t('Home'); ?>" rel="home" id="logo"><img src="<?php print $logo; ?>" alt="<?php print t('Home'); ?>" /></a>
-<div id="sharing_bar">
-    <a target="_blank" href="https://twitter.com/statuses/user_timeline/182156990.rss" title="OUSA RSS" class="chicklet" id="ck_rss"></a>
-    <a target="_blank" href="http://youtube.com/orienteeringusa" title="Youtube" class="chicklet" id="ck_youtube"></a>
-    <a target="_blank" href="http://twitter.com/orienteeringusa" title="Twitter" class="chicklet" id="ck_twitter"></a>
-<div class="clearboth"></div>
-</div><!-- sharing_bar-->
+    <div id="sharing_bar">
+      <a target="_blank" href="https://api.twitter.com/1/statuses/user_timeline.rss?screen_name=orienteeringusa" title="OUSA RSS" class="chicklet" id="ck_rss"></a>
+      <a target="_blank" href="http://youtube.com/orienteeringusa" title="Youtube" class="chicklet" id="ck_youtube"></a>
+      <a target="_blank" href="http://twitter.com/orienteeringusa" title="Twitter" class="chicklet" id="ck_twitter"></a>
+      <a target="_blank" href="https://www.facebook.com/OrienteeringUSA" title="Facebook" class="chicklet" id="ck_facebook"></a>
+      <div class="clearboth"></div>
+    </div><!-- sharing_bar-->
 </div></div>
 
 <div id="top-nav" class="holder"><div id="top-nav-inner" class="sector">
