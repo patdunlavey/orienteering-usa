@@ -1,5 +1,4 @@
 <?php
-// $Id: destinations.file.inc,v 1.1.2.1.2.13 2009/12/09 22:07:42 ronan Exp $
 
 
 /**
@@ -61,6 +60,17 @@ class backup_migrate_destination_files extends backup_migrate_destination {
       backup_migrate_include('files');
       return new backup_file(array('filepath' => $filepath));
     }
+  }
+
+  /**
+   * Get the file object for the given file.
+   */
+  function get_file($file_id) {
+    $files = $this->list_files();
+    if (isset($files[$file_id])) {
+      isset($files[$file_id]);
+    }
+    return NULL;
   }
 
   /**
@@ -135,7 +145,7 @@ class backup_migrate_destination_files extends backup_migrate_destination {
     }
     return $form;
   }
- 
+
   /**
    * Validate the form for the settings for the files destination.
    */
@@ -164,18 +174,22 @@ class backup_migrate_destination_files extends backup_migrate_destination {
   function check_dir($directory) {
     $out = TRUE;
     $dirs = array();
-    foreach (explode('/', $directory) as $dir) {
-      $dirs[] = $dir;
-      $path = implode($dirs, '/');
-      if ($path && !is_dir(realpath($path)) && !file_check_directory($path, FILE_CREATE_DIRECTORY)) {
-        $out = FALSE;
-      }
-    }
 
-    if (!$out || !file_check_directory($directory)) {
-      // Unable to create destination directory.
-      _backup_migrate_message("Unable to create or write to the save directory '%directory'. Please check the file permissions that directory and try again.", array('%directory' => $directory), "error");
-      return FALSE;
+    // If the directory doesn't exist try to create it.
+    if (!is_dir($directory)) {
+      foreach (explode('/', $directory) as $dir) {
+        $dirs[] = $dir;
+        $path = implode($dirs, '/');
+        if ($path && !is_dir(realpath($path)) && !file_check_directory($path, FILE_CREATE_DIRECTORY)) {
+          $out = FALSE;
+        }
+      }
+
+      if (!$out || !file_check_directory($directory)) {
+        // Unable to create destination directory.
+        _backup_migrate_message("Unable to create or write to the save directory '%directory'. Please check the file permissions that directory and try again.", array('%directory' => $directory), "error");
+        return FALSE;
+      }
     }
 
     // If the destination directory is within the webroot, then secure it as best we can.
@@ -190,7 +204,10 @@ class backup_migrate_destination_files extends backup_migrate_destination {
    * Check that a web accessible directory has been properly secured, othewise attempt to secure it.
    */
   function check_web_dir($directory) {
-    // Check for a htaccess file which adequately protects the backup files.
+     // If the directory is specified with an absolute path, strip the site root.
+    $directory = substr(realpath($directory), strlen(realpath('.') . '/'));
+
+     // Check for a htaccess file which adequately protects the backup files.
     $htaccess_lines = "order allow,deny\ndeny from all\n";
     if (!is_file($directory .'/.htaccess') || !is_readable($directory .'/.htaccess') || strpos(file_get_contents($directory .'/.htaccess'), $htaccess_lines) === FALSE) {
       // Attempt to protect the backup files from public access using htaccess.
@@ -202,8 +219,7 @@ class backup_migrate_destination_files extends backup_migrate_destination {
       else {
         $message = "Security warning: Couldn't modify .htaccess file. Please create a .htaccess file in your %directory directory which contains the following lines: <code>!htaccess</code> or add them to the existing .htaccess file";
         $replace = array('%directory' => $directory, '!htaccess' => '<br />'. nl2br(check_plain($htaccess_lines)));
-        drupal_set_message(t($message, $replace), "error");
-        watchdog('security', t($message, $replace), WATCHDOG_ERROR);
+        _backup_migrate_message($message, $replace, 'error');
         return FALSE;
       }
     }
@@ -215,7 +231,7 @@ class backup_migrate_destination_files extends backup_migrate_destination {
     }
 
     // Check to see if the destination is publicly accessible
-    $test_contents = "this file should not be publicly accesible";
+    $test_contents = "this file should not be publicly accessible";
     // Create the the text.txt file if it's not already there.
     if (!is_file($directory .'/test.txt') || file_get_contents($directory .'/test.txt') != $test_contents) {
       if ($fp = fopen($directory .'/test.txt', 'w')) {
@@ -224,17 +240,16 @@ class backup_migrate_destination_files extends backup_migrate_destination {
       }
       else {
         $message = t("Security notice: Backup and Migrate was unable to write a test text file to the destination directory %directory, and is therefore unable to check the security of the backup destination. Backups to the server will be disabled until the destination becomes writable and secure.", array('%directory' => $directory));
-        drupal_set_message($message, "error");
+        _backup_migrate_message($message, array(), "error");
         return FALSE;
       }
     }
 
     // Attempt to read the test file via http. This may fail for other reasons,
     // so it's not a bullet-proof check.
-    $path = trim(drupal_substr($directory .'/test.txt', drupal_strlen(file_directory_path())), '\\/');
-    if ($this->test_file_readable_remotely($path, $test_contents)) {
+    if ($this->test_file_readable_remotely($directory .'/test.txt', $test_contents)) {
       $message = t("Security notice: Backup and Migrate will not save backup files to the server because the destination directory is publicly accessible. If you want to save files to the server, please secure the '%directory' directory", array('%directory' => $directory));
-      drupal_set_message($message, "error");
+      _backup_migrate_message($message, array(), "error");
       return FALSE;
     }
     return $directory;
@@ -244,7 +259,7 @@ class backup_migrate_destination_files extends backup_migrate_destination {
    * Check if the given directory is within the webroot and is therefore web accessible.
    */
   function dir_in_webroot($directory) {
-    if (strpos(realpath($directory), realpath($_SERVER['DOCUMENT_ROOT'])) !== FALSE) {
+    if (strpos(realpath($directory), realpath('.')) !== FALSE) {
       return TRUE;
     }
     return FALSE;
@@ -254,9 +269,10 @@ class backup_migrate_destination_files extends backup_migrate_destination {
    * Check if a file can be read remotely via http.
    */
   function test_file_readable_remotely($path, $contents) {
-    $url = $GLOBALS['base_url'] .'/'. file_directory_path() .'/'. str_replace('\\', '/', $path);
+    $url = $GLOBALS['base_url'] .'/'. str_replace('\\', '/', $path);
+
     $result = drupal_http_request($url);
-    if (strpos($result->data, $contents) !== FALSE) {
+    if (!empty($result->data) && strpos($result->data, $contents) !== FALSE) {
       return TRUE;
     }
     return FALSE;

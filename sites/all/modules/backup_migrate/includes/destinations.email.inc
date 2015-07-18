@@ -1,5 +1,4 @@
 <?php
-// $Id: destinations.email.inc,v 1.1.2.1.2.8 2009/10/17 19:53:20 ronan Exp $
 
 
 /**
@@ -42,7 +41,7 @@ class backup_migrate_destination_email extends backup_migrate_destination {
       "#title" => t("Email Address"),
       "#default_value" => $this->get_location(),
       "#required" => TRUE,
-      "#description" => t('Enter the email address to send the backup files to. Make sure the email sever can handle large file attachments'),
+      "#description" => t('Enter the email address to send the backup files to. Make sure the email server can handle large file attachments.'),
     );
     return $form;
   }
@@ -136,6 +135,6 @@ class mime_mail {
     if (!empty($this->headers)) $mime .= $this->headers ."\n";
     if (!empty($this->body)) $this->add_attachment($this->body, "", "text/plain");
     $mime .= "MIME-Version: 1.0\n". $this->build_multipart();
-    mail($this->to, $this->subject, "", $mime);
+    mail(trim($this->to), $this->subject, "", $mime);
   }
 }

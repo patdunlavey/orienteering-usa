@@ -1,5 +1,4 @@
 <?php
-// $Id: schedules.inc,v 1.1.2.1.2.15 2009/11/26 21:16:59 ronan Exp $
 
 /**
  * @file
@@ -177,7 +176,8 @@ class backup_migrate_schedule extends backup_migrate_item {
    * Format the enabled status in human-readable form.
    */
   function get_last_run_description() {
-    return !empty($this->last_run) ? format_date($this->last_run, 'small') : t('Never');
+    $last_run = $this->get('last_run');
+    return !empty($last_run) ? format_date($last_run, 'small') : t('Never');
   }
 
   /**
@@ -204,7 +204,6 @@ class backup_migrate_schedule extends backup_migrate_item {
     $form['enabled'] = array(
       "#type" => "checkbox",
       "#title" => t("Enabled"),
-      "#field_suffix" => t("Hour(s)"),
       "#default_value" => $this->get('enabled'),
     );
     $form['name'] = array(
@@ -221,7 +220,7 @@ class backup_migrate_schedule extends backup_migrate_item {
       "#options" => _backup_migrate_get_profile_form_item_options(),
       "#default_value" => $this->get('profile_id'),
     );
-    $form['profile_id']['#description'] = ' '. l(t("Create new profile"), "admin/content/backup_migrate/profile/add");
+    $form['profile_id']['#description'] = ' '. l(t("Create new profile"), BACKUP_MIGRATE_MENU_PATH . "/profile/add");
     if (!$form['profile_id']['#options']) {
       $form['profile_id']['#options'] = array('0' => t('-- None Available --'));
     }
@@ -266,7 +265,7 @@ class backup_migrate_schedule extends backup_migrate_item {
       "#options" => $destination_options,
       "#default_value" => $this->get('destination_id'),
     );
-    $form['destination_id']['#description'] .= ' '. l(t("Create new destination"), "admin/content/backup_migrate/destination/add");
+    $form['destination_id']['#description'] .= ' '. l(t("Create new destination"), BACKUP_MIGRATE_MENU_PATH . "/destination/add");
 
     return $form;
   }
@@ -335,12 +334,12 @@ class backup_migrate_schedule extends backup_migrate_item {
     // Add a small negative buffer (1% of the entire period) to the time to account for slight difference in cron run length.
     $wait_time = $this->period - ($this->period * variable_get('backup_migrate_schedule_buffer', 0.01));
 
-    if ($this->is_enabled() && ($now - $this->last_run) >= $wait_time) {
+    if ($this->is_enabled() && ($now - $this->get('last_run')) >= $wait_time) {
       if ($settings = $this->get_profile()) {
         $settings->destination_id = $this->destination_id;
         $settings->source_id = $this->source_id;
-        backup_migrate_perform_backup($settings);
         $this->update_last_run($now);
+        backup_migrate_perform_backup($settings);
         $this->remove_expired_backups();
       }
       else {
@@ -356,13 +355,16 @@ class backup_migrate_schedule extends backup_migrate_item {
     if ($timestamp === NULL) {
       $timestamp = time();
     }
-    db_query("UPDATE {backup_migrate_schedules}
-                 SET last_run = %d
-               WHERE schedule_id = '%s'",
-      $timestamp,
-      $this->get_id()
-    );
+    variable_set('backup_migrate_schedule_last_run_' . $this->get('id'), $timestamp);
   }
+
+/**
+   * Set the last run time of a schedule to the given timestamp, or now if none specified.
+   */
+  function get_last_run($timestamp = NULL) {
+    return variable_get('backup_migrate_schedule_last_run_' . $this->get('id'), 0);
+  }
+
 
   /**
    * Remove older backups keeping only the number specified by the aministrator.
