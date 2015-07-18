@@ -1,10 +1,14 @@
 <?php
-// $Id: userreference.module,v 1.106.2.43.2.8 2010/06/10 16:19:32 markuspetrux Exp $
 
 /**
  * @file
  * Defines a field type for referencing a user from a node.
  */
+
+// We do not use hook_init(), since that hook is not fired in update.php, and we
+// need token generation to be active within hook_update_N() (e.g. for
+// node_save() calls.)
+require_once dirname(__FILE__) . '/userreference.token.inc';
 
 /**
  * Implementation of hook_menu().
@@ -726,8 +730,15 @@ function _userreference_potential_references_views($field, $string = '', $match 
     // should be moved to content_plugin_display_references
 
     // Limit result set size.
+    // - Views 3.x uses set_items_per_page(),
+    // - Views 2.x uses set_option('items_per_page').
     $limit = isset($limit) ? $limit : 0;
-    $view->display_handler->set_option('items_per_page', $limit);
+    if (method_exists($view, 'set_items_per_page')) {
+      $view->set_items_per_page($limit);
+    }
+    else {
+      $view->display_handler->set_option('items_per_page', $limit);
+    }
 
     // Get arguments for the view.
     if (!empty($field['advanced_view_args'])) {
