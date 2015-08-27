@@ -402,9 +402,15 @@ function theme_views_node_selector($element) {
     foreach ($records as $num => $object) {
       $vars['row_classes'][$num][] = 'rowclick';
       $row = array('class' => implode(' ', $vars['row_classes'][$num]), 'data' => array());
-      $row['data'][] =  theme('checkbox', $element['selection'][_views_bulk_operations_hash_object($object)]);
+      $row['data'][] =  theme('checkbox', $element['selection'][_views_bulk_operations_hash_object($object, $view)]);
       foreach ($vars['rows'][$num] as $field => $content) {
-        $row['data'][] = array('data' => $content, 'class' => $vars['field_classes'][$field][$num]);
+        // Support field classes in Views 3, but provide a fallback for Views 2.
+        if (views_api_version() == 2) {
+          $row['data'][] = array('data' => $content, 'class' => 'views-field views-field-' . $vars['fields'][$field]);
+        }
+        else {
+          $row['data'][] = array('data' => $content, 'class' => $vars['field_classes'][$field][$num]);
+        }
       }
       $rows[] = $row;
     }
@@ -936,6 +942,7 @@ function views_bulk_operations_views_bulk_operations_object_info() {
       'oid' => 'uid',
       'title' => 'name',
       'context' => 'account',
+      'access' => '_views_bulk_operations_user_access',
       'hook' => 'user',
       'normalize' => '_views_bulk_operations_normalize_user_context',
     ),
@@ -945,6 +952,7 @@ function views_bulk_operations_views_bulk_operations_object_info() {
       'load' => '_comment_load',
       'oid' => 'cid',
       'title' => 'subject',
+      'access' => '_views_bulk_operations_comment_access',
       'hook' => 'comment',
       'normalize' => '_views_bulk_operations_normalize_comment_context',
     ),
@@ -971,6 +979,20 @@ function views_bulk_operations_views_bulk_operations_object_info() {
     ),
   );
   return $object_info;
+}
+
+/**
+ * Access function for objects of type 'user'.
+ */
+function _views_bulk_operations_user_access($op, $user, $account = NULL) {
+  return user_access('access user profiles', $account);
+}
+
+/**
+ * Access function for objects of type 'comments'.
+ */
+function _views_bulk_operations_comment_access($op, $comment, $account = NULL) {
+  return user_access('access comments', $account);
 }
 
 /**
