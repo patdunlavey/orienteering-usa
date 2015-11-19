@@ -5,9 +5,9 @@ core = 6.x
 package = OpenLayers
 dependencies[] = openlayers
 
-; Information added by drupal.org packaging script on 2011-02-25
+; Information added by drupal.org packaging script on 2013-10-01
 version = "6.x-2.x-dev"
 core = "6.x"
 project = "openlayers_proximity"
-datestamp = "1298619834"
+datestamp = "1380620965"
 
