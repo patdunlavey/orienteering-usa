@@ -1,16 +1,17 @@
-// $Id: webform-admin.js,v 1.1.2.2 2010/04/11 06:13:51 quicksketch Exp $
 
 /**
  * Webform node form interface enhancments.
  */
 
-Drupal.behaviors.webform = function(context) {
+Drupal.behaviors.webformAdmin = function(context) {
   // Apply special behaviors to fields with default values.
   Drupal.webform.defaultValues(context);
   // On click or change, make a parent radio button selected.
   Drupal.webform.setActive(context);
   // Update the template select list upon changing a template.
   Drupal.webform.updateTemplate(context);
+  // Select all link for file extensions.
+  Drupal.webform.selectCheckboxesLink(context);
   // Enhance the normal tableselect.js file to support indentations.
   Drupal.webform.tableSelectIndentation(context);
 }
@@ -46,16 +47,17 @@ Drupal.webform.defaultValues = function(context) {
 };
 
 Drupal.webform.setActive = function(context) {
-  var setActive = function() {
+  var setActive = function(e) {
     $('.form-radio', $(this).parent().parent()).attr('checked', true);
+    e.preventDefault();
   };
   $('.webform-set-active', context).click(setActive).change(setActive);
 };
 
 Drupal.webform.updateTemplate = function(context) {
   var defaultTemplate = $('#edit-templates-default').val();
-  var $templateSelect = $('#webform-template-fieldset select', context);
-  var $templateTextarea = $('#webform-template-fieldset textarea', context);
+  var $templateSelect = $('#webform-template-fieldset select#edit-template-option', context);
+  var $templateTextarea = $('#webform-template-fieldset textarea:visible', context);
 
   var updateTemplateSelect = function() {
     if ($(this).val() == defaultTemplate) {
@@ -67,13 +69,32 @@ Drupal.webform.updateTemplate = function(context) {
   }
 
   var updateTemplateText = function() {
-    if ($(this).val() == 'default') {
-      $templateTextarea.val(defaultTemplate);
+    if ($(this).val() == 'default' && $templateTextarea.val() != defaultTemplate) {
+      if (confirm(Drupal.settings.webform.revertConfirm)) {
+        $templateTextarea.val(defaultTemplate);
+      }
+      else {
+        $(this).val('custom');
+      }
     }
   }
 
   $templateTextarea.keyup(updateTemplateSelect);
   $templateSelect.change(updateTemplateText);
+}
+
+Drupal.webform.selectCheckboxesLink = function(context) {
+  function selectCheckboxes() {
+    var group = this.className.replace(/.*?webform-select-link-([^ ]*).*/, '$1');
+    var $checkboxes = $('.webform-select-group-' + group + ' input[type=checkbox]');
+    var reverseCheck = !$checkboxes[0].checked;
+    $checkboxes.each(function() {
+      this.checked = reverseCheck;
+    });
+    $checkboxes.trigger('change');
+    return false;
+  }
+  $('a.webform-select-link', context).click(selectCheckboxes);
 }
 
 Drupal.webform.tableSelectIndentation = function(context) {

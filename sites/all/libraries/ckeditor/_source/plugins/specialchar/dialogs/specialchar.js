@@ -1,5 +1,5 @@
 ﻿/*
-Copyright (c) 2003-2011, CKSource - Frederico Knabben. All rights reserved.
+Copyright (c) 2003-2013, CKSource - Frederico Knabben. All rights reserved.
 For licensing, see LICENSE.html or http://ckeditor.com/license
 */
 
@@ -25,7 +25,10 @@ CKEDITOR.dialog.add( 'specialchar', function( editor )
 			target.removeClass( "cke_light_background" );
 			dialog.hide();
 
-			editor.insertHtml( value );
+			// We must use "insertText" here to keep text styled.
+			var span = editor.document.createElement( 'span' );
+			span.setHtml( value );
+			editor.insertText( span.getText() );
 		}
 	};
 
@@ -123,8 +126,6 @@ CKEDITOR.dialog.add( 'specialchar', function( editor )
 
 			// RIGHT-ARROW
 			case rtl ? 37 : 39 :
-			// TAB
-			case 9 :
 				// relative is TD
 				if ( ( relative = element.getParent().getNext() ) )
 				{
@@ -157,8 +158,6 @@ CKEDITOR.dialog.add( 'specialchar', function( editor )
 
 			// LEFT-ARROW
 			case rtl ? 39 : 37 :
-			// SHIFT + TAB
-			case CKEDITOR.SHIFT + 9 :
 				// relative is TD
 				if ( ( relative = element.getParent().getPrevious() ) )
 				{
@@ -210,7 +209,7 @@ CKEDITOR.dialog.add( 'specialchar', function( editor )
 
 			while ( i < size )
 			{
-				html.push( '<tr>' ) ;
+				html.push( '<tr role="presentation">' ) ;
 
 				for ( var j = 0 ; j < columns ; j++, i++ )
 				{
@@ -225,7 +224,7 @@ CKEDITOR.dialog.add( 'specialchar', function( editor )
 						}
 						else
 						{
-							var _tmpName = character.toLowerCase().replace( '&', '' ).replace( ';', '' ).replace( '#', '' );
+							var _tmpName = character.replace( '&', '' ).replace( ';', '' ).replace( '#', '' );
 
 							// Use character in case description unavailable.
 							charDesc = lang[ _tmpName ] || character;

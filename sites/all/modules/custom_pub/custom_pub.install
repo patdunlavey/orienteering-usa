@@ -1,8 +1,10 @@
 <?php
-//;$Id: custom_pub.install,v 1.1 2010/01/20 21:13:05 arcaneadam Exp $
-
 /**
- * Implementation of hook_uninstall()
+ * @file
+ * Install and update function for Custom pub
+ */
+/**
+ * Implements hook_uninstall()
  */
 function custom_pub_uninstall() {
 	$types = variable_get('custom_pub_types', array());
@@ -11,4 +13,45 @@ function custom_pub_uninstall() {
 		db_drop_field($ret,'node',$type);
 	}
 	variable_del('custom_pub_types');
+  variable_del('custom_pub_node_types');
+  return $ret;
+}
+
+/**
+ * Implements hook_update_N()
+ */
+function custom_pub_update_6120() {
+  $types = variable_get('custom_pub_types', array());
+  $node_types = variable_get('custom_pub_node_types', array());
+  foreach ($types as $type => $name) {
+    $new_types[$type]['type'] = $type;
+    $new_types[$type]['name'] = $name;
+  }
+  foreach ($node_types as $node_type => $types_on) {
+    foreach($types_on as $type => $name) {
+      $new_types[$type]['node_types'][$node_type] = TRUE;
+    }
+  }
+  variable_set('custom_pub_types', $new_types);
+  variable_del('custom_pub_node_types');
+  return array();
+}
+
+/**
+ * Implements hook_update_N()
+ */
+function custom_pub_update_6130() {
+  $types = variable_get('custom_pub_types', array());
+  $node_types = node_get_types();
+  foreach ($types as $type) {
+    foreach ($node_types as $node_type) {
+      if (!empty($type['node_types'][$node_type->type])) {
+        $type['node_types'][$node_type->type] = $node_type->name;
+      }
+    }
+    $types[$type['type']] = $type;
+  }
+  variable_set('custom_pub_types', $types);
+  drupal_set_message('Updated Custom Publishing Options');
+  return array();
 }

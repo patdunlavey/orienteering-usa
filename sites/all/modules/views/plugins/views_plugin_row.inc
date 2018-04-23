@@ -1,5 +1,4 @@
 <?php
-// $Id: views_plugin_row.inc,v 1.4 2009/06/01 23:34:55 merlinofchaos Exp $
 /**
  * @file
  * Contains the base row style plugin.
@@ -99,13 +98,13 @@ class views_plugin_row extends views_plugin {
   /**
    * Validate the options form.
    */
-  function options_validate($form, &$form_state) { }
+  function options_validate(&$form, &$form_state) { }
 
   /**
    * Perform any necessary changes to the form values prior to storage.
    * There is no need for this function to actually store the data.
    */
-  function options_submit($form, &$form_state) { }
+  function options_submit(&$form, &$form_state) { }
 
   function query() {
     if (isset($this->base_table) && isset($this->options['relationship']) && isset($this->view->relationship[$this->options['relationship']])) {

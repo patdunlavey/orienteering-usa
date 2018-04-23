@@ -1,5 +1,9 @@
 <?php
-// $Id: captcha.admin.inc,v 1.32 2009/10/27 16:11:17 soxofaan Exp $
+
+/**
+ * @file
+ * Functionality and helper functions for CAPTCHA administration.
+ */
 
 /**
  * Return an array with the available CAPTCHA types, for use as options array
@@ -32,7 +36,7 @@ function _captcha_available_challenge_types($add_special_options=TRUE) {
 /**
  * Form builder function for the general CAPTCHA configuration
  */
-function captcha_admin_settings() {
+function captcha_admin_settings(&$form_state) {
   module_load_include('inc', 'captcha');
 
   // Use javascript for some added usability on admin form.
@@ -60,34 +64,42 @@ function captcha_admin_settings() {
   );
   $form['captcha_form_protection']['captcha_form_id_overview']['captcha_captcha_points'] = array();
   $captcha_type_options = _captcha_available_challenge_types();
-  // TODO: make a wrapper for this query to make it a bit cleaner?
-  $result = db_query("SELECT * FROM {captcha_points} ORDER BY form_id");
-  while ($captcha_point = db_fetch_object($result)) {
-    $form['captcha_form_protection']['captcha_form_id_overview']['captcha_captcha_points'][$captcha_point->form_id] = array();
-    $form['captcha_form_protection']['captcha_form_id_overview']['captcha_captcha_points'][$captcha_point->form_id]['form_id'] = array(
+
+  $captcha_points = captcha_get_captcha_points();
+  foreach ($captcha_points as $captcha_point) {
+    $elem = array();
+    $elem['form_id'] = array(
       '#value' => $captcha_point->form_id,
     );
     // Select widget for CAPTCHA type.
     if (isset($captcha_point->module) && $captcha_point->module) {
-      $captcha_type = $captcha_point->module .'/'. $captcha_point->type;
+      $captcha_type = $captcha_point->module .'/'. $captcha_point->captcha_type;
     }
-    elseif ($captcha_point->type == 'default') {
+    elseif (isset($captcha_point->captcha_type) && ($captcha_point->captcha_type == 'default')) {
       $captcha_type = 'default';
     }
     else {
       $captcha_type = 'none';
     }
-    $form['captcha_form_protection']['captcha_form_id_overview']['captcha_captcha_points'][$captcha_point->form_id]['captcha_type'] = array(
+    $elem['captcha_type'] = array(
       '#type' => 'select',
       '#default_value' => $captcha_type,
       '#options' => $captcha_type_options,
     );
     // Additional operations.
-    $form['captcha_form_protection']['captcha_form_id_overview']['captcha_captcha_points'][$captcha_point->form_id]['operations'] = array(
-      '#value' => implode(", ", array(
-        l(t('delete'), "admin/user/captcha/captcha/captcha_point/{$captcha_point->form_id}/delete"),
-      ))
-    );
+    $ops = array();
+    if (module_exists('ctools') && $captcha_point->export_type & EXPORT_IN_CODE) {
+      if ($captcha_point->export_type & EXPORT_IN_DATABASE) {
+        $ops[] = l(t('revert'), "admin/user/captcha/captcha/captcha_point/{$captcha_point->form_id}/delete");
+      }
+      // TODO Disable exported points.
+    }
+    else {
+      $ops[] = l(t('delete'), "admin/user/captcha/captcha/captcha_point/{$captcha_point->form_id}/delete");
+    }
+    $elem['operations'] = array('#value' => implode(", ", $ops));
+
+    $form['captcha_form_protection']['captcha_form_id_overview']['captcha_captcha_points'][$captcha_point->form_id] = $elem;
   }
 
   // Form items for new form_id.
@@ -118,6 +130,26 @@ function captcha_admin_settings() {
     '#default_value' => variable_get('captcha_allow_on_admin_pages', FALSE),
     '#description' => t('This option makes it possible to add CAPTCHAs to forms on administrative pages. CAPTCHAs are disabled by default on administrative pages (which shouldn\'t be accessible to untrusted users normally) to avoid the related overhead. In some situations, e.g. in the case of demo sites, it can be usefull to allow CAPTCHAs on administrative pages.'),
   );
+
+  // Button for flushing the CAPTCHA placement cache.
+  $form['captcha_form_protection']['captcha_placement_caching'] = array(
+    '#type' => 'item',
+    '#title' => t('CAPTCHA placement caching'),
+    '#description' => t('For efficiency, the positions of the CAPTCHA elements in each of the configured forms are cached. Most of the time, the structure of a form does not change and it would be a waste to recalculate the positions every time. Occasionally however, the form structure can change (e.g. during site building) and flushing the CAPTCHA placement cache can be required to fix the CAPTCHA placement.'),
+  );
+  $form['captcha_form_protection']['captcha_placement_caching']['captcha_placement_cache_flush'] = array(
+    '#type' => 'button',
+    '#value' => t('Flush the CAPTCHA placement cache'),
+    '#submit' => array('captcha_placement_cache_flush'),
+  );
+  // Handle the button for flushing the CAPTCHA placement cache.
+  // This is done here instead of in a submit handler because the button is
+  // not a submitting button.
+  if (isset($form_state['post']['op']) && $form_state['post']['op'] ==  t('Flush the CAPTCHA placement cache')) {
+    variable_del('captcha_placement_map_cache');
+    drupal_set_message(t('Flushed the CAPTCHA placement cache.'));
+  }
+
 
   // Configuration option for adding a CAPTCHA description.
   $form['captcha_add_captcha_description'] = array(
@@ -151,7 +183,6 @@ function captcha_admin_settings() {
       '#description' => t('Configurable description of the CAPTCHA. An empty entry will reset the description.'),
       '#default_value' => _captcha_get_description(),
       '#maxlength' => 256,
-      '#attributes' => array('id' => 'edit-captcha-description-wrapper'),
     );
   }
 
@@ -168,16 +199,22 @@ function captcha_admin_settings() {
   );
 
   // Field for CAPTCHA persistence.
+  // TODO for D7: Rethink/simplify the explanation and UI strings.
   $form['captcha_persistence'] = array(
     '#type' => 'radios',
     '#title' => t('Persistence'),
-    '#default_value' => variable_get('captcha_persistence', CAPTCHA_PERSISTENCE_SHOW_ALWAYS),
+    '#default_value' => variable_get('captcha_persistence', CAPTCHA_PERSISTENCE_SKIP_ONCE_SUCCESSFUL_PER_FORM_INSTANCE),
     '#options' => array(
-      CAPTCHA_PERSISTENCE_SHOW_ALWAYS => t('Always add a challenge.'),
-      CAPTCHA_PERSISTENCE_SKIP_ONCE_SUCCESSFUL_PER_FORM => t('Omit challenges for a form once the user has successfully responded to a challenge for that form.'),
-      CAPTCHA_PERSISTENCE_SKIP_ONCE_SUCCESSFUL => t('Omit challenges for all forms once the user has successfully responded to a challenge.'),
+      CAPTCHA_PERSISTENCE_SHOW_ALWAYS =>
+        t('Always add a challenge.'),
+      CAPTCHA_PERSISTENCE_SKIP_ONCE_SUCCESSFUL_PER_FORM_INSTANCE =>
+        t('Omit challenges in a multi-step/preview workflow once the user successfully responds to a challenge.'),
+      CAPTCHA_PERSISTENCE_SKIP_ONCE_SUCCESSFUL_PER_FORM_TYPE =>
+        t('Omit challenges on a form type once the user successfully responds to a challenge on a form of that type.'),
+      CAPTCHA_PERSISTENCE_SKIP_ONCE_SUCCESSFUL =>
+        t('Omit challenges on all forms once the user successfully responds to any challenge on the site.'),
     ),
-    '#description' => t('Define if challenges should be omitted during the rest of a session once the user successfully responses to a challenge.'),
+    '#description' => t('Define if challenges should be omitted during the rest of a session once the user successfully responds to a challenge.'),
   );
 
   // Option for logging wrong responses.
@@ -244,7 +281,31 @@ function captcha_admin_settings_submit($form, &$form_state) {
 
   // Process CAPTCHA points
   if (isset($form_state['values']['captcha_form_id_overview']['captcha_captcha_points'])) {
+    // Load existing data.
+    $captcha_points = captcha_get_captcha_points();
+
     foreach ($form_state['values']['captcha_form_id_overview']['captcha_captcha_points'] as $captcha_point_form_id => $data) {
+
+      // If this is an in-code captcha point and its settings are unchanged,
+      // don't save to the database.
+      if (module_exists('ctools') && isset($captcha_points[$captcha_point_form_id])) {
+        // Parse module and captcha_type from submitted values.
+        $captcha_type = $data['captcha_type'];
+        if (is_string($captcha_type) && substr_count($captcha_type, '/') == 1) {
+          list($module, $subtype) = explode('/', $data['captcha_type']);
+        }
+        else {
+          $module = NULL;
+          $subtype = ($captcha_type === 'none') ? NULL : $captcha_type;
+        }
+
+        $point = $captcha_points[$captcha_point_form_id];
+        if ($point->export_type & EXPORT_IN_CODE && !($point->export_type & EXPORT_IN_DATABASE) &&
+        $point->module == $module && $point->captcha_type == $subtype) {
+          continue;
+        }
+      }
+
       captcha_set_form_id_setting($captcha_point_form_id, $data['captcha_type']);
     }
   }
@@ -327,7 +388,7 @@ function captcha_point_admin_form($form_state, $captcha_point_form_id=NULL) {
     );
     $captcha_point = captcha_get_form_id_setting($captcha_point_form_id);
     if ($captcha_point) {
-      $default_captcha_type = "{$captcha_point->module}/{$captcha_point->type}";
+      $default_captcha_type = "{$captcha_point->module}/{$captcha_point->captcha_type}";
     }
   }
   else {

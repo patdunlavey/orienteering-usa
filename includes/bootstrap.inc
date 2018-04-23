@@ -364,7 +364,14 @@ function drupal_unset_globals() {
  *  TRUE if only containing valid characters, or FALSE otherwise.
  */
 function drupal_valid_http_host($host) {
-  return preg_match('/^\[?(?:[a-z0-9-:\]_]+\.?)+$/', $host);
+  // Limit the length of the host name to 1000 bytes to prevent DoS attacks with
+  // long host names.
+  return strlen($host) <= 1000
+    // Limit the number of subdomains and port separators to prevent DoS attacks
+    // in conf_path().
+    && substr_count($host, '.') <= 100
+    && substr_count($host, ':') <= 100
+    && preg_match('/^\[?(?:[a-zA-Z0-9-:\]_]+\.?)+$/', $host);
 }
 
 /**
@@ -378,6 +385,10 @@ function conf_init() {
   global $db_url, $db_prefix, $db_collation, $cookie_domain, $conf, $installed_profile, $update_free_access;
   $conf = array();
 
+  if (!isset($_SERVER['SERVER_PROTOCOL']) || ($_SERVER['SERVER_PROTOCOL'] != 'HTTP/1.0' && $_SERVER['SERVER_PROTOCOL'] != 'HTTP/1.1')) {
+    $_SERVER['SERVER_PROTOCOL'] = 'HTTP/1.0';
+  }
+
   if (isset($_SERVER['HTTP_HOST'])) {
     // As HTTP_HOST is user input, ensure it only contains characters allowed
     // in hostnames. See RFC 952 (and RFC 2181).
@@ -385,7 +396,7 @@ function conf_init() {
     $_SERVER['HTTP_HOST'] = strtolower($_SERVER['HTTP_HOST']);
     if (!drupal_valid_http_host($_SERVER['HTTP_HOST'])) {
       // HTTP_HOST is invalid, e.g. if containing slashes it may be an attack.
-      header('HTTP/1.1 400 Bad Request');
+      header($_SERVER['SERVER_PROTOCOL'] .' 400 Bad Request');
       exit;
     }
   }
@@ -399,7 +410,7 @@ function conf_init() {
     include_once './'. conf_path() .'/settings.php';
   }
 
-  // Ignore the placeholder url from default.settings.php.
+  // Ignore the placeholder URL from default.settings.php.
   if (isset($db_url) && $db_url == 'mysql://username:password@localhost/databasename') {
     $db_url = '';
   }
@@ -438,7 +449,7 @@ function conf_init() {
   }
   else {
     // Otherwise use $base_url as session name, without the protocol
-    // to use the same session identifiers across http and https.
+    // to use the same session identifiers across HTTP and HTTPS.
     list( , $session_name) = explode('://', $base_url, 2);
     // We escape the hostname because it can be modified by a visitor.
     if (!empty($_SERVER['HTTP_HOST'])) {
@@ -749,7 +760,7 @@ function drupal_page_cache_header($cache) {
   if ($if_modified_since && $if_none_match
       && $if_none_match == $etag // etag must match
       && $if_modified_since == $last_modified) {  // if-modified-since must match
-    header('HTTP/1.1 304 Not Modified');
+    header($_SERVER['SERVER_PROTOCOL'] .' 304 Not Modified');
     // All 304 responses must send an etag if the 200 response for the same object contained an etag
     header("Etag: $etag");
     return;
@@ -1121,6 +1132,7 @@ function _drupal_bootstrap($phase) {
       timer_start('page');
       // Initialize the configuration
       conf_init();
+      _drupal_bootstrap_sanitize_request();
       break;
 
     case DRUPAL_BOOTSTRAP_EARLY_PAGE_CACHE:
@@ -1149,7 +1161,7 @@ function _drupal_bootstrap($phase) {
     case DRUPAL_BOOTSTRAP_ACCESS:
       // Deny access to hosts which were banned - t() is not yet available.
       if (drupal_is_denied('host', ip_address())) {
-        header('HTTP/1.1 403 Forbidden');
+        header($_SERVER['SERVER_PROTOCOL'] .' 403 Forbidden');
         print 'Sorry, '. check_plain(ip_address()) .' has been banned.';
         exit();
       }
@@ -1164,6 +1176,35 @@ function _drupal_bootstrap($phase) {
     case DRUPAL_BOOTSTRAP_LATE_PAGE_CACHE:
       // Initialize configuration variables, using values from settings.php if available.
       $conf = variable_init(isset($conf) ? $conf : array());
+
+      // Sanitize the destination parameter (which is often used for redirects)
+      // to prevent open redirect attacks leading to other domains. Sanitize
+      // both $_GET['destination'] and $_REQUEST['destination'] to protect code
+      // that relies on either, but do not sanitize $_POST to avoid interfering
+      // with unrelated form submissions. $_REQUEST['edit']['destination'] is
+      // also sanitized since drupal_goto() will sometimes rely on it, and
+      // other code might therefore use it too. The sanitization happens here
+      // because menu_path_is_external() requires the variable system to be
+      // available.
+      if (isset($_GET['destination']) || isset($_REQUEST['destination']) || isset($_REQUEST['edit']['destination'])) {
+        require_once './includes/menu.inc';
+        drupal_load('module', 'filter');
+        // If the destination is an external URL, remove it.
+        if (isset($_GET['destination']) && menu_path_is_external($_GET['destination'])) {
+          unset($_GET['destination']);
+          unset($_REQUEST['destination']);
+        }
+        // If there's still something in $_REQUEST['destination'] that didn't
+        // come from $_GET, check it too.
+        if (isset($_REQUEST['destination']) && (!isset($_GET['destination']) || $_REQUEST['destination'] != $_GET['destination']) && menu_path_is_external($_REQUEST['destination'])) {
+          unset($_REQUEST['destination']);
+        }
+        // Check $_REQUEST['edit']['destination'] separately.
+        if (isset($_REQUEST['edit']['destination']) && menu_path_is_external($_REQUEST['edit']['destination'])) {
+          unset($_REQUEST['edit']['destination']);
+        }
+      }
+
       $cache_mode = variable_get('cache', CACHE_DISABLED);
       // Get the page from the cache.
       $cache = $cache_mode == CACHE_DISABLED ? '' : page_get_cache();
@@ -1329,4 +1370,212 @@ function ip_address() {
   }
 
   return $ip_address;
+}
+
+/**
+ * Returns a URL-safe, base64 encoded string of highly randomized bytes (over the full 8-bit range).
+ *
+ * @param $byte_count
+ *   The number of random bytes to fetch and base64 encode.
+ *
+ * @return string
+ *   The base64 encoded result will have a length of up to 4 * $byte_count.
+ */
+function drupal_random_key($byte_count = 32) {
+  return drupal_base64_encode(drupal_random_bytes($byte_count));
+}
+
+/**
+ * Returns a URL-safe, base64 encoded version of the supplied string.
+ *
+ * @param $string
+ *   The string to convert to base64.
+ *
+ * @return string
+ */
+function drupal_base64_encode($string) {
+  $data = base64_encode($string);
+  // Modify the output so it's safe to use in URLs.
+  return strtr($data, array('+' => '-', '/' => '_', '=' => ''));
+}
+
+/**
+ * Returns a string of highly randomized bytes (over the full 8-bit range).
+ *
+ * This function is better than simply calling mt_rand() or any other built-in
+ * PHP function because it can return a long string of bytes (compared to < 4
+ * bytes normally from mt_rand()) and uses the best available pseudo-random
+ * source.
+ *
+ * @param $count
+ *   The number of characters (bytes) to return in the string.
+ */
+function drupal_random_bytes($count) {
+  // $random_state does not use drupal_static as it stores random bytes.
+  static $random_state, $bytes, $has_openssl, $has_hash;
+
+  $missing_bytes = $count - strlen($bytes);
+
+  if ($missing_bytes > 0) {
+    // PHP versions prior 5.3.4 experienced openssl_random_pseudo_bytes()
+    // locking on Windows and rendered it unusable.
+    if (!isset($has_openssl)) {
+      $has_openssl = version_compare(PHP_VERSION, '5.3.4', '>=') && function_exists('openssl_random_pseudo_bytes');
+    }
+
+    // openssl_random_pseudo_bytes() will find entropy in a system-dependent
+    // way.
+    if ($has_openssl) {
+      $bytes .= openssl_random_pseudo_bytes($missing_bytes);
+    }
+
+    // Else, read directly from /dev/urandom, which is available on many *nix
+    // systems and is considered cryptographically secure.
+    elseif ($fh = @fopen('/dev/urandom', 'rb')) {
+      // PHP only performs buffered reads, so in reality it will always read
+      // at least 4096 bytes. Thus, it costs nothing extra to read and store
+      // that much so as to speed any additional invocations.
+      $bytes .= fread($fh, max(4096, $missing_bytes));
+      fclose($fh);
+    }
+
+    // If we couldn't get enough entropy, this simple hash-based PRNG will
+    // generate a good set of pseudo-random bytes on any system.
+    // Note that it may be important that our $random_state is passed
+    // through hash() prior to being rolled into $output, that the two hash()
+    // invocations are different, and that the extra input into the first one -
+    // the microtime() - is prepended rather than appended. This is to avoid
+    // directly leaking $random_state via the $output stream, which could
+    // allow for trivial prediction of further "random" numbers.
+    if (strlen($bytes) < $count) {
+      // Initialize on the first call. The contents of $_SERVER includes a mix of
+      // user-specific and system information that varies a little with each page.
+      if (!isset($random_state)) {
+        $random_state = print_r($_SERVER, TRUE);
+        if (function_exists('getmypid')) {
+          // Further initialize with the somewhat random PHP process ID.
+          $random_state .= getmypid();
+        }
+        // hash() is only available in PHP 5.1.2+ or via PECL.
+        $has_hash = function_exists('hash') && in_array('sha256', hash_algos());
+        $bytes = '';
+      }
+
+      if ($has_hash) {
+        do {
+          $random_state = hash('sha256', microtime() . mt_rand() . $random_state);
+          $bytes .= hash('sha256', mt_rand() . $random_state, TRUE);
+        } while (strlen($bytes) < $count);
+      }
+      else {
+        do {
+          $random_state = md5(microtime() . mt_rand() . $random_state);
+          $bytes .= pack("H*", md5(mt_rand() . $random_state));
+        } while (strlen($bytes) < $count);
+      }
+    }
+  }
+  $output = substr($bytes, 0, $count);
+  $bytes = substr($bytes, $count);
+  return $output;
+}
+
+/**
+ * Calculates a hexadecimal encoded sha-1 hmac.
+ *
+ * @param string $data
+ *   String to be validated with the hmac.
+ * @param string $key
+ *   A secret string key.
+ *
+ * See RFC2104 (http://www.ietf.org/rfc/rfc2104.txt). Note, the result of this
+ * must be identical to using hash_hmac('sha1', $data, $key);  We don't use
+ * that function since PHP can be missing it if it was compiled with the
+ * --disable-hash switch.
+ *
+ * @return string
+ *   A hexadecimal encoded sha-1 hmac.
+ */
+function drupal_hash_hmac_sha1($data, $key) {
+  // Keys longer than the 64 byte block size must be hashed first.
+  if (strlen($key) > 64) {
+    $key = pack("H*", sha1($key));
+  }
+  return sha1((str_pad($key, 64, chr(0x00)) ^ (str_repeat(chr(0x5c), 64))) . pack("H*", sha1((str_pad($key, 64, chr(0x00)) ^ (str_repeat(chr(0x36), 64))) . $data)));
+}
+
+/**
+ * Calculates a base-64 encoded, URL-safe sha-1 hmac.
+ *
+ * @param string $data
+ *   String to be validated with the hmac.
+ * @param string $key
+ *   A secret string key.
+ *
+ * @return string
+ *   A base-64 encoded sha-1 hmac, with + replaced with -, / with _ and
+ *   any = padding characters removed.
+ */
+function drupal_hmac_base64($data, $key) {
+  // Casting $data and $key to strings here is necessary to avoid empty string
+  // results of the hash function if they are not scalar values. As this
+  // function is used in security-critical contexts like token validation it is
+  // important that it never returns an empty string.
+  $hmac = base64_encode(pack("H*", drupal_hash_hmac_sha1((string) $data, (string) $key)));
+  // Modify the hmac so it's safe to use in URLs.
+  return strtr($hmac, array('+' => '-', '/' => '_', '=' => ''));
+}
+
+/**
+ * Sanitizes unsafe keys from the request.
+ */
+function _drupal_bootstrap_sanitize_request() {
+  global $conf;
+  static $sanitized;
+
+  if (!$sanitized) {
+    // Ensure the whitelist array exists.
+    if (!isset($conf['sanitize_input_whitelist']) || !is_array($conf['sanitize_input_whitelist'])) {
+      $conf['sanitize_input_whitelist'] = array();
+    }
+
+    $sanitized_keys = _drupal_bootstrap_sanitize_input($_GET, $conf['sanitize_input_whitelist']);
+    $sanitized_keys = array_merge($sanitized_keys, _drupal_bootstrap_sanitize_input($_POST, $conf['sanitize_input_whitelist']));
+    $sanitized_keys = array_merge($sanitized_keys, _drupal_bootstrap_sanitize_input($_REQUEST, $conf['sanitize_input_whitelist']));
+    $sanitized_keys = array_merge($sanitized_keys, _drupal_bootstrap_sanitize_input($_COOKIE, $conf['sanitize_input_whitelist']));
+    $sanitized_keys = array_unique($sanitized_keys);
+
+    if (count($sanitized_keys) && !empty($conf['sanitize_input_logging'])) {
+      trigger_error(check_plain(sprintf('Potentially unsafe keys removed from request parameters: %s', implode(', ', $sanitized_keys)), E_USER_WARNING));
+    }
+
+    $sanitized = TRUE;
+  }
+}
+
+/**
+ * Sanitizes unsafe keys from user input.
+ *
+ * @param mixed $input
+ *   Input to sanitize.
+ * @param array $whitelist
+ *   Whitelist of values.
+ * @return array
+ */
+function _drupal_bootstrap_sanitize_input(&$input, $whitelist = array()) {
+  $sanitized_keys = array();
+
+  if (is_array($input)) {
+    foreach ($input as $key => $value) {
+      if ($key !== '' && $key[0] === '#' && !in_array($key, $whitelist, TRUE)) {
+        unset($input[$key]);
+        $sanitized_keys[] = $key;
+      }
+      elseif (is_array($input[$key])) {
+        $sanitized_keys = array_merge($sanitized_keys, _drupal_bootstrap_sanitize_input($input[$key], $whitelist));
+      }
+    }
+  }
+
+  return $sanitized_keys;
 }

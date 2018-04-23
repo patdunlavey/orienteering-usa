@@ -1,11 +1,10 @@
 <?php
-// $Id: views_handler_field_upload_description.inc,v 1.5.2.1 2010/04/07 23:40:35 merlinofchaos Exp $
 
 /**
  * Field handler to provide a list of roles.
  */
 class views_handler_field_upload_description extends views_handler_field {
-  function init(&$view, &$options) {
+  function init(&$view, $options) {
     parent::init($view, $options);
     if (!empty($options['link_to_file'])) {
       $this->additional_fields['fid'] = 'fid';

@@ -1,5 +1,3 @@
-// $Id: README.txt,v 1.20 2009/12/15 22:27:17 soxofaan Exp $
-
 Readme file for the CAPTCHA module for Drupal
 ---------------------------------------------
 
@@ -17,7 +15,7 @@ Dependencies:
   The basic CAPTCHA module has no dependencies, nothing special is required.
 
 Conflicts/known issues:
-  CAPTCHA and page caching do not work together currently.
+  CAPTCHA and authcache/boost caching do not work together currently.
   However, the CAPTCHA module does support the Drupal core page
   caching mechanism: it just disables the caching of the pages
   where it has to put its challenges.
@@ -26,6 +24,7 @@ Conflicts/known issues:
   error: unknown CAPTCHA session ID'.
 
 Configuration:
-  The configuration page is at admin/user/captcha, here you can configure
-  the CAPTCHA module and enable challenges for the desired forms.
+  The configuration page is at admin/user/captcha,
+  where you can configure the CAPTCHA module
+  and enable challenges for the desired forms.
   You can also tweak the image CAPTCHA to your liking.

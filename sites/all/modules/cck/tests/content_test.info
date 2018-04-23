@@ -1,0 +1,13 @@
+name = Content Test
+description = Test module for CCK.
+package = CCK
+core = 6.x
+dependencies[] = schema
+hidden = TRUE
+files[] = content_test.module
+; Information added by Drupal.org packaging script on 2015-06-25
+version = "6.x-3.0-alpha4"
+core = "6.x"
+project = "cck"
+datestamp = "1435195385"
+

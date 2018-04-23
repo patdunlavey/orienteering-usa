@@ -1,5 +1,4 @@
 <?php
-// $Id: revisioning.admin.inc,v 1.2 2010/02/17 06:12:26 rdeboer Exp $
 
 /**
  * @file

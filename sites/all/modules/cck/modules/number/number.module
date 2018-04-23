@@ -1,10 +1,14 @@
 <?php
-// $Id: number.module,v 1.91.2.35.2.2 2009/10/15 10:45:15 markuspetrux Exp $
 
 /**
  * @file
  * Defines numeric field types.
  */
+
+// We do not use hook_init(), since that hook is not fired in update.php, and we
+// need token generation to be active within hook_update_N() (e.g. for
+// node_save() calls.)
+require_once dirname(__FILE__) . '/number.token.inc';
 
 /**
  * Implementation of hook_theme().

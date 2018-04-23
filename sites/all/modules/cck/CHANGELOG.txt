@@ -1,9 +1,57 @@
-// $Id: CHANGELOG.txt,v 1.1.6.335.2.82 2010/08/14 05:33:51 markuspetrux Exp $
+CCK 6.x-3.0-alpha4
+==================
 
-CCK 6.x-3.x
-===========
+- Security: Open Redirect - SA-CONTRIB-2015-126
+- #1401950 by KarenS, Add empty test module with dependency on schema to make schema available to testbot.
+- #1363036 by markdorison, Fix Class 'ContentCrudTestCase' not found message in tests.
+- #1097548 by DeFr: Fixed warning on node forms for multigroups without any required fields.
+- #998494 by zhangtaihao: Fix Node Reference field always displaying 10 results
+  when using the Advanced View option (with Views 6.x-3.x)
+- #1167004 by DeFr: Dramatically enhance node display performance issues.
+- #1189090 by gaurishankar, yched: Fixed warnings on multigroups with no
+  required fields.
+- #1423432 by sun: Fixed testInfo() methods throws PHP notices.
+- #1533506 by yched: Fixed field tokens not available in hook_update_N().
+- #1442886 by pdrake: Fixed fatal error "failed opening theme.inc" in some edge
+  cases.
+
+CCK 6.x-3.0-alpha3
+==================
+
+- #1081072 Imagefield validation does not use error_element, needs a tweak so that the empty required field gets highlighted correctly.
+- #1081072 Imagefield validation requires that we alter the field_info values or it will still require an image in an empty group.
+- Fix miscellaneous undefined index errors.
+- #1081072 Tweak fix for required fields inside non-required group so not all fields are highlighted.
+- #1093928 Required option lists do not have an empty option available. Add one to avoid 'An illegal choice has been detected' errors for empty groups.
+- #1081072 Fix Cannot use a scalar value as an array problem when using optionwidgets.
+
+CCK 6.x-3.0-alpha2
+==================
 
 Features:
+- #536260 by Agileware: Make "Add more values" button text themeable.
+
+Bugfixes:
+- Fix Use of undefined constant _add_new_group.
+- Fix undefined index '#depth'.
+- Fix warning: Creating default object from empty value in template_preprocess_content_display_overview_form() (line 134 of ..theme.inc).
+- #1063338 by DeFr: Fix undefined indexes for FIELD_NAME_rendered and others.
+- Fix undefined group name index in fieldgroup_nodeapi.
+- #1053566 by DamienMcKenna: Fix undefined index errors in _fieldgroup_get_tree().
+- #1081072 Must be able to save empty, non-required, multigroup, even if it contains required fields.
+- #522564 Remove empty groups even if not marked 'remove'.
+- Multigroup validation was defaulting to 'required' when created, should default to 'not required'.
+- #1092044 Make sure all multigroup formats are preserved, even if not visible on the current tab.
+
+CCK 6.x-3.0-alpha1
+==================
+
+Features:
+- #1049790 Add tests for fieldgroup.
+- #849420 by Roberto Gerola, rconstantine, thekevinday, ericduran, KarenS Add ability to nest fieldgroups within other fieldgroups.
+- #1008184 by merlinofchaos, bojanz, dereine, yched: Adapt to Views 3 "semantic views" feature (backwards compatible with Views 2)
+- #932680 by Dave Reid: Token integration : allow using of Token API's new $options
+- #863226 by KarenS, make sure we have a function that will return inactive instances when other instances of the same field are still active.
 - #692822 by Dave Reid, add authoring info and publishing options to CCK extra fields.
 - #428650 Conditional cache/menu rebuild for content CRUD methods.
 - #334945 Save default values when field is hidden because of access permissions.
@@ -33,6 +81,17 @@ Features:
 - #670344 by dagmar: Make CCK compatible with both, views 2 and views 3.
 
 Bugfixes:
+- Multigroups were defaulting to 'required' when created, should default to 'not required'.
+- #766734 Restructure multigroup field layout to be consistent with other fieldgroups, and use
+  content_get_nested_elements() to grab the right values no matter how the fields are structured.
+- #739490 by foripepe: Token integration - fix notices during token generation
+- #986612 by Dave Reid: Token integration - fix variable name clash (harmless in normal cases)
+- #435520 by yched, sun: Fix text fields rendered as 'n/a' in some cases
+- #728472 by Darren Oh : Ensure the module's preprocess functions run first
+- #894880 by yched: fix notices in check_plain() when rendering empty 'plain text' values
+- #705512 by cha0s, roderick: 'add more' button - fix PHP5.3 compatibility
+- #736440 by yched, dhthwy: fix memory leaks on long running migration scripts (e.g. migrate.module)
+- #887742 by yched: fix notices in _content_get_formatter() in some Views
 - #470470 by neilnz, use iLIKE for postgres selects.
 - #769592 by vkareh, add default values to nodeapi.
 - #714762 by Robbert, make diff module integration PHP5 compliant.

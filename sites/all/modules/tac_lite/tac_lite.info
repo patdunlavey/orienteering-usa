@@ -3,9 +3,9 @@ description = Simple access control based on categories.
 dependencies[] = taxonomy
 core = 6.x
 
-; Information added by drupal.org packaging script on 2011-05-12
-version = "6.x-1.x-dev"
+; Information added by drupal.org packaging script on 2011-06-07
+version = "6.x-1.6"
 core = "6.x"
 project = "tac_lite"
-datestamp = "1305161273"
+datestamp = "1307486519"
 

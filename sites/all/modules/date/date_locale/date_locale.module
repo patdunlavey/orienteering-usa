@@ -1,5 +1,4 @@
 <?php
-// $Id: date_locale.module,v 1.1.2.1 2009/01/25 13:03:13 karens Exp $
 /**
  * @file
  * Enable different locales to have their own date formats.
@@ -76,16 +75,18 @@ function date_locale_get_locale_date_format($languages) {
       // We have locale-specific date formats, so check for their types.  If
       // we're missing a type, use the default setting instead.
       foreach ($format_types as $type => $type_info) {
-        $format = $date_formats[$type];
+        if (isset($date_formats[$type])) {
+          $format = $date_formats[$type];
 
-        // If format exists for this language, use it.
-        if (!empty($format)) {
-          $formats['date_format_' . $type] = $format;
-        }
-        // Otherwise get default variable setting.  If this is not set, default
-        // to the short format.
-        else {
-          $formats['date_format_' . $type] = variable_get('date_format_' . $type, $short_default);
+          // If format exists for this language, use it.
+          if (!empty($format)) {
+            $formats['date_format_' . $type] = $format;
+          }
+          // Otherwise get default variable setting.  If this is not set, default
+          // to the short format.
+          else {
+            $formats['date_format_' . $type] = variable_get('date_format_' . $type, $short_default);
+          }
         }
       }
 
@@ -152,7 +153,7 @@ function date_locale_format_form($form_state) {
       '#title' => t('Language'),
       '#type' => 'select',
       '#options' => $languages,
-      '#multiple' => false,
+      '#multiple' => FALSE,
     );
 
     $form['buttons']['submit'] = array(
@@ -292,4 +293,3 @@ function date_locale_locale_format_save($langcode, $type, $format) {
   }
 
 }
-

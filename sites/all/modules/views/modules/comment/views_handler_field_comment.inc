@@ -1,5 +1,4 @@
 <?php
-// $Id: views_handler_field_comment.inc,v 1.5 2009/02/10 20:37:49 merlinofchaos Exp $
 /**
  * Field handler to allow linking to a comment
  */
@@ -7,7 +6,7 @@ class views_handler_field_comment extends views_handler_field {
   /**
    * Override init function to provide generic option to link to comment.
    */
-  function init(&$view, &$options) {
+  function init(&$view, $options) {
     parent::init($view, $options);
     if (!empty($this->options['link_to_comment'])) {
       $this->additional_fields['cid'] = 'cid';

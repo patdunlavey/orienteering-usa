@@ -1,4 +1,3 @@
-// $Id: select-admin.js,v 1.1.2.1 2010/04/10 22:02:08 quicksketch Exp $
 
 /**
  * @file
@@ -48,7 +47,7 @@ Drupal.webform.selectOptionsLoad = function(result) {
       $('#' + result.elementId).val(result.options).attr('readonly', 'readonly');
     }
     else {
-      $('#' + result.elementId).attr('readonly', '');
+      $('#' + result.elementId).removeAttr('readonly');
     }
   }
 }

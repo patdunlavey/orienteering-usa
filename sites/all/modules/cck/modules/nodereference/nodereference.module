@@ -1,10 +1,14 @@
 <?php
-// $Id: nodereference.module,v 1.138.2.55.2.14 2010/08/14 05:32:42 markuspetrux Exp $
 
 /**
  * @file
  * Defines a field type for referencing one node from another.
  */
+
+// We do not use hook_init(), since that hook is not fired in update.php, and we
+// need token generation to be active within hook_update_N() (e.g. for
+// node_save() calls.)
+require_once dirname(__FILE__) . '/nodereference.token.inc';
 
 /**
  * Implementation of hook_menu().
@@ -183,7 +187,7 @@ function nodereference_field_settings($op, $field) {
  */
 function nodereference_field($op, &$node, $field, &$items, $teaser, $page) {
   static $sanitized_nodes = array();
-  
+
   switch ($op) {
     // When preparing a translation, load any translations of existing references.
     case 'prepare translation':
@@ -861,8 +865,15 @@ function _nodereference_potential_references_views($field, $string = '', $match 
     // should be moved to content_plugin_display_references
 
     // Limit result set size.
+    // - Views 3.x uses set_items_per_page(),
+    // - Views 2.x uses set_option('items_per_page').
     $limit = isset($limit) ? $limit : 0;
-    $view->display_handler->set_option('items_per_page', $limit);
+    if (method_exists($view, 'set_items_per_page')) {
+      $view->set_items_per_page($limit);
+    }
+    else {
+      $view->display_handler->set_option('items_per_page', $limit);
+    }
 
     // Get arguments for the view.
     if (!empty($field['advanced_view_args'])) {

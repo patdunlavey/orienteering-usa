@@ -91,7 +91,7 @@ class openlayers_proximity_handler_filter extends views_handler_filter_float {
    * Validate the options form.
    */
   function expose_validate($form, &$form_state) {
-    parent::expose_validate($form, &$form_state);
+    parent::expose_validate($form, $form_state);
     // @todo: validation.
   }
   
@@ -255,7 +255,7 @@ class openlayers_proximity_handler_filter extends views_handler_filter_float {
    * Validate the exposed filter form
    */
   function exposed_validate(&$form, &$form_state) { 
-    parent::exposed_validate(&$form, &$form_state);
+    parent::exposed_validate($form, $form_state);
     
     // Satitize "value", "min" and "max"
     $operators = $this->operators();
