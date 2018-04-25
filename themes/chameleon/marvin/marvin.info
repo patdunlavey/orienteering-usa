@@ -5,9 +5,3 @@ regions[right] = Right sidebar
 version = VERSION
 core = 6.x
 base theme = chameleon
-
-; Information added by Drupal.org packaging script on 2015-06-17
-version = "6.36"
-project = "drupal"
-datestamp = "1434567252"
-
