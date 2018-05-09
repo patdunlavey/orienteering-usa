@@ -3,9 +3,3 @@ description = Checks the status of available updates for Drupal and your install
 version = VERSION
 package = Core - optional
 core = 6.x
-
-; Information added by Drupal.org packaging script on 2015-06-17
-version = "6.36"
-project = "drupal"
-datestamp = "1434567252"
-
