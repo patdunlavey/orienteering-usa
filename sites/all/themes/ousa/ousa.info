@@ -64,7 +64,9 @@ regions[footer]         = Footer
 regions[page_closure]   = Page closure
 regions[home_banner]   = Home : Banner
 regions[home_get_started]   = Home : Get Started
-regions[home_photo_slider]   = Home : Photo Slider
+regions[home_get_outside]   = Home : Get Outside
+regions[home_featvideo]   = Home : Featured Video
+regions[home_introd]   = Home : An Introduction
 regions[home_sponsors]   = Home : Sponsors
 regions[default_map]   = Default Map
 
