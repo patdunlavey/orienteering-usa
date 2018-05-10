@@ -1,0 +1,9 @@
+name = Cache Exclude
+description = Exclude certain pages from being cached.
+core=6.x
+; Information added by drupal.org packaging script on 2013-01-11
+version = "6.x-2.2"
+core = "6.x"
+project = "cacheexclude"
+datestamp = "1357939519"
+
