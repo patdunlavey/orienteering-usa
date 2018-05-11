@@ -81,7 +81,7 @@
 
 <p class="icaption">National Orienteering Events</p></a>
 </div>
-<div class="imgcontainer"><a href="https://orienteeringusa.org/clubs/proximity">
+<div class="imgcontainer"><a href="https://orienteeringusa.org/clubs">
 <img src="<?php print url('sites/all', array('absolute' => TRUE)); ?>/themes/ousa/images/front/find-a-club/<?php echo rand(1,12); ?>.jpg" />
 <p class="icaption">Find a club near you</p></a>
 </div>
