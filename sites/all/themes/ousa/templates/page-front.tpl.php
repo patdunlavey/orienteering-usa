@@ -7,7 +7,7 @@
   <?php print $head; ?>
   <?php print $styles; ?>
   <?php print $scripts; ?>
-  <script type="text/javascript" src="/themes/ousa/js/jquery.hoverscroll-0.2.2.js"></script>
+  <script type="text/javascript" src="<?php print url('sites/all', array('absolute' => TRUE)); ?>/themes/ousa/js/jquery.hoverscroll-0.2.2.js"></script>
   <!-- HORIZONTAL Scroll - Photo  -->
 <script type="text/javascript" charset="utf-8">
         $(function(){
@@ -77,12 +77,12 @@
 <div class="ousacolumn ousaone-one">
 <h2 class="title">Go Orienteering</h2>
 <div class="imgcontainer"><a href="https://orienteeringusa.org/orienteers/on-foot/events/sanctioned-events-calendar">
-<img src="/themes/ousa/images/front/national/<?php echo rand(1,17); ?>.jpg" />
+<img src="<?php print url('sites/all', array('absolute' => TRUE)); ?>/themes/ousa/images/front/national/<?php echo rand(1,17); ?>.jpg" />
 
 <p class="icaption">National Orienteering Events</p></a>
 </div>
 <div class="imgcontainer"><a href="https://orienteeringusa.org/clubs/proximity">
-<img src="/themes/ousa/images/front/find-a-club/<?php echo rand(1,12); ?>.jpg" />
+<img src="<?php print url('sites/all', array('absolute' => TRUE)); ?>/themes/ousa/images/front/find-a-club/<?php echo rand(1,12); ?>.jpg" />
 <p class="icaption">Find a club near you</p></a>
 </div>
 </div>
