@@ -465,11 +465,11 @@ padding: 0;
     margin: 20px 0 0px 20px;
 }
 ul.linkswa li {
-background: url('/themes/ousa/images/front/arrow-blue.png') no-repeat left top;
+background: url('/sites/all/themes/ousa/images/front/arrow-blue.png') no-repeat left top;
 height: 25px;
     padding-left: 30px;
 }
-.getoutsiderow {
+.getoutsiderow.videos {
     margin-bottom: 35px;
 }
 #copyright {
@@ -484,7 +484,7 @@ height: 25px;
     background: transparent;
 }
 #block-block-1 {
-    background: url('/themes/ousa/images/global/twitter-back.png') bottom left no-repeat;
+    background: url('/sites/all/themes/ousa/images/global/twitter-back.png') bottom left no-repeat;
 }
 #block-views-Home-block_5 .views-row{
     float: none;
@@ -568,7 +568,7 @@ a.alleventslink:after {
     width: 10px;
     height: 10px;
     content: "";
-    background: url('/themes/ousa/images/global/red-control.png') bottom right no-repeat;
+    background: url('/sites/all/themes/ousa/images/global/red-control.png') bottom right no-repeat;
     display: inline-block;
     background-size: 75%;
     transform: rotate(-45deg);
@@ -609,4 +609,22 @@ p.caption {
 .ousacolumn.ousaone.half.relative:not(:first-child) p.caption:last-child{  background: rgba(212, 0, 0, 0.75);}
   .getoutsiderow .ousacolumn.ousatwo.half.relative img, .getoutsiderow .ousacolumn.ousaone.half.relative img {
     border-bottom-right-radius: 13px;
+}
+/*fixes*/
+.not-front div#block-views-Home-block_5 {
+    position: relative;
+left: 0;
+    top: 0;
+}
+.not-front #block-views-Home-block_5 .content {
+    text-align: left;
+}
+.not-front #block-views-Home-block_5 .views-row {
+    float: left;
+}
+.not-front #block-views-Home-block_5 .views-row.views-row-1.views-row-odd.views-row-first {
+    margin: 0px 30px 0 0;
+}
+.not-front #copyright {
+    top: 0;
 }
