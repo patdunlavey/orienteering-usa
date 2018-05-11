@@ -1,2 +1,2 @@
-<div id="copyright">Copyright &copy; Orienteering USA. <?= date ('Y') ?><br />All Rights Reserved.</div>
+<div id="copyright">Copyright &copy; Orienteering USA. <?= date ('Y') ?>All Rights Reserved.</div>
 
